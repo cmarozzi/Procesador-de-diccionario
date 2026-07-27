@@ -65,6 +65,11 @@
   table.vc-t td { padding: 6px 9px; border-bottom: 1px solid var(--border); white-space: nowrap; color: var(--texto); }
   table.vc-t tr:nth-child(even) td { background: #FAFAFF; }
 
+  .vc-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .vc-tab { font-family: 'Barlow', sans-serif; background: #fff; color: var(--texto); border: 1.5px solid var(--border); border-radius: 8px; padding: 9px 18px; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+  .vc-tab.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .vc-tab:not(.active):hover { background: var(--fondo); }
+
   .vc-rule-card { background: var(--fondo); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
   .vc-rule-card h4 { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: var(--navy); }
   .vc-rule-card p { margin: 0; font-size: 12.5px; color: var(--texto); line-height: 1.5; }
@@ -78,36 +83,63 @@
   <div class="vc-hero">
     <span class="vc-eyebrow">Comandarina</span>
     <p class="vc-h1">Procesador de diccionario</p>
-    <p class="vc-sub">Subí los 5 reportes, procesá, y descargá los archivos listos para cada regla. Los archivos de datos no se guardan en ningún servidor; las reglas y casos especiales sí quedan guardados acá.</p>
+    <p class="vc-sub">Subí los reportes, procesá, y descargá los archivos listos para cada regla. Los archivos de datos no se guardan en ningún servidor.</p>
   </div>
 
-  <div class="vc-grid">
-    <div class="vc-card">
-      <label>1. Odoo (Contacto res_partner) — .xlsx o .csv, con External ID y Tipo de identificación</label>
-      <input type="file" id="f-odoo" accept=".xlsx,.csv" />
-      <div class="vc-status pending" id="s-odoo">Sin cargar</div>
-    </div>
-    <div class="vc-card">
-      <label>2. Dash — Accounts + Billing (.zip)</label>
-      <input type="file" id="f-dashzip" accept=".zip" />
-      <div class="vc-status pending" id="s-dashzip">Sin cargar</div>
-    </div>
-    <div class="vc-card">
-      <label>3. Metabase AFIP/ARCA (xlsx)</label>
-      <input type="file" id="f-metabase" accept=".xlsx" />
-      <div class="vc-status pending" id="s-metabase">Sin cargar</div>
-    </div>
-    <div class="vc-card">
-      <label>4. Admin emails (csv)</label>
-      <input type="file" id="f-admin" accept=".csv" />
-      <div class="vc-status pending" id="s-admin">Sin cargar</div>
-    </div>
+  <div class="vc-tabs">
+    <button class="vc-tab active" id="tab-etapa1" onclick="vcSetEtapa(1)">Etapa 1 · Odoo</button>
+    <button class="vc-tab" id="tab-etapa2" onclick="vcSetEtapa(2)">Etapa 2 · Dash</button>
   </div>
 
-  <button class="vc-btn" id="btn-process" disabled>Procesar archivos</button>
-  <span class="vc-log" id="proc-log"></span>
+  <div id="etapa1-panel">
+    <div class="vc-grid">
+      <div class="vc-card">
+        <label>1. Odoo (Contacto res_partner) — .xlsx o .csv, con External ID y Tipo de identificación</label>
+        <input type="file" id="f-odoo" accept=".xlsx,.csv" />
+        <div class="vc-status pending" id="s-odoo">Sin cargar</div>
+      </div>
+      <div class="vc-card">
+        <label>2. Dash — Accounts + Billing (.zip)</label>
+        <input type="file" id="f-dashzip" accept=".zip" />
+        <div class="vc-status pending" id="s-dashzip">Sin cargar</div>
+      </div>
+      <div class="vc-card">
+        <label>3. Metabase AFIP/ARCA (xlsx)</label>
+        <input type="file" id="f-metabase" accept=".xlsx" />
+        <div class="vc-status pending" id="s-metabase">Sin cargar</div>
+      </div>
+      <div class="vc-card">
+        <label>4. Admin emails (csv)</label>
+        <input type="file" id="f-admin" accept=".csv" />
+        <div class="vc-status pending" id="s-admin">Sin cargar</div>
+      </div>
+    </div>
 
-  <div id="results" style="margin-top:24px; display:none;"></div>
+    <button class="vc-btn" id="btn-process" disabled>Procesar archivos</button>
+    <span class="vc-log" id="proc-log"></span>
+
+    <div id="results" style="margin-top:24px; display:none;"></div>
+  </div>
+
+  <div id="etapa2-panel" style="display:none;">
+    <div class="vc-grid">
+      <div class="vc-card">
+        <label>1. Odoo actualizado (Contacto res_partner) — .xlsx o .csv, con dirección completa</label>
+        <input type="file" id="f2-odoo" accept=".xlsx,.csv" />
+        <div class="vc-status pending" id="s2-odoo">Sin cargar</div>
+      </div>
+      <div class="vc-card">
+        <label>2. Dash — Accounts + Billing (.zip)</label>
+        <input type="file" id="f2-dashzip" accept=".zip" />
+        <div class="vc-status pending" id="s2-dashzip">Sin cargar</div>
+      </div>
+    </div>
+
+    <button class="vc-btn" id="btn-process-2" disabled>Procesar archivos</button>
+    <span class="vc-log" id="proc-log-2"></span>
+
+    <div id="results-2" style="margin-top:24px; display:none;"></div>
+  </div>
 
   <div class="vc-section" style="margin-top:24px;">
     <div class="vc-section-head" onclick="vcToggle('sec-reglas')">
@@ -123,7 +155,7 @@
 
 <script>
 (function(){
-  const REGLAS = [
+  const REGLAS_ETAPA1 = [
     { titulo: 'Prioridad de fuente', texto: 'Si Billing.Código existe (CUIT/DNI real), Billing manda. Si Billing.Código NO existe (Sin datos/0), se consulta Metabase (Comandarina + approved) como respaldo.' },
     { titulo: 'Regla 1 — OK, sin acción', texto: 'Billing.Código existe, NIF = Código, Mail = Email, y el contacto está Activo en Odoo. Incluye el caso "Aprobado": sin billing, sin Metabase, ya existe en Odoo como Consumidor Final → no se toca.' },
     { titulo: 'Regla 1b — Reactivar', texto: 'Igual que la Regla 1 (NIF y mail coinciden) pero el contacto está Archivado en Odoo → se genera una actualización que pone Activo = TRUE (cliente viejo que volvió a facturar). Las reglas 2, 3b y 4a también reactivan automáticamente si encuentran el contacto archivado.' },
@@ -141,8 +173,16 @@
     { titulo: 'Output 2 — Actualizar contactos en Odoo', texto: 'Incluye reglas 1b, 2, 2b, 3a (baja), 3b y 4a. Solo columna "External ID" (sin ID de base de datos) — al importar, mapear "External ID" al campo External ID para que actualice en vez de crear. Trae columna "Grupo" (qué regla aplicó) y "Comentario" (avisos a revisar antes de importar, ninguna se pisa).' },
     { titulo: 'Output 3 — Alta de contactos en Odoo', texto: 'Incluye reglas 3a (alta), 4b, 5 y 6. Plantilla Comandarina, sin columna ID. Sub-casos: CUIT, DNI (con domicilio/ciudad), Sin datos (Sigd), 4b (Metabase), 3a-alta. Prioridad de mail: Billing.Email si existe, si no Admin (Dash). Trae columna "Comentario" con avisos a revisar antes de importar.' },
     { titulo: 'Comentarios de revisión (Output 2 y 3)', texto: 'Nunca se pisa ningún dato: si falta el mail de admin, el comentario dice "buscar mail admin". Si el mail tiene tildes, espacios de más, o formato inválido, se anota el detalle. Un banner arriba avisa si hay filas para revisar antes de importar.' },
-    { titulo: 'Mapeo de situación fiscal (Dash/Metabase → Odoo)', texto: 'Responsable inscripto / responsable_inscripto → IVA Responsable Inscripto. Monotributo / monotributista → Responsable Monotributo. Consumidor final → Consumidor Final. Exento → IVA Sujeto Exento. (Solo aplica en Output 2, no en Output 3).' },
-    { titulo: 'Pendiente', texto: 'Definir el formato de importación para Dash (Etapa 2, con el Odoo ya actualizado).' }
+    { titulo: 'Mapeo de situación fiscal (Dash/Metabase → Odoo)', texto: 'Responsable inscripto / responsable_inscripto → IVA Responsable Inscripto. Monotributo / monotributista → Responsable Monotributo. Consumidor final → Consumidor Final. Exento → IVA Sujeto Exento. (Solo aplica en Output 2, no en Output 3).' }
+  ];
+
+  const REGLAS_ETAPA2 = [
+    { titulo: 'Condición', texto: 'La Referencia existe en Odoo, Odoo.NIF (Código) tiene valor, y Billing.Código está vacío para esa cuenta en Dash → se arma la fila de import para Dash. No depende de qué regla de la Etapa 1 la generó (Metabase, carga manual, etc.), solo del estado final en Odoo vs Dash.' },
+    { titulo: 'Contactos excluidos', texto: 'Se ignoran los contactos Archivados en Odoo y las Referencias con sufijo "_old" (bajas de una corrida anterior de la Etapa 1) — no participan del cruce.' },
+    { titulo: 'Mapeo de campos (Odoo → Dash)', texto: 'ID = Referencia. Tipo de identificación = Odoo.Tipo de Identificación (ya sin el sufijo " (AR)"). Código = Odoo.NIF. Razón social = Odoo.Nombre. Ciudad = Odoo.Ciudad. Estado = Odoo.Provincia. Domicilio = Odoo.Calle. Código postal = Odoo.C.P. Email = Odoo.Correo electrónico.' },
+    { titulo: 'Mapeo de situación fiscal (Odoo → Dash)', texto: 'IVA Responsable Inscripto → Responsable inscripto. Responsable Monotributo → Monotributo. Consumidor Final → Consumidor final. IVA Sujeto Exento → Exento. (Es el mapeo inverso al de la Etapa 1).' },
+    { titulo: 'Todos los campos son obligatorios', texto: 'Dash exige los 9 campos del template (ID, Tipo de identificación, Código, Razón social, Ciudad, Estado, Domicilio, Situación ante el impuesto, Email, Código postal). Si a una cuenta le falta alguno, no entra al archivo de import: va al archivo de revisión.' },
+    { titulo: 'Dos archivos de salida', texto: 'Import a Dash: filas 100% completas, listas para subir (CSV separado por comas). Revisar antes de importar: filas con algún dato faltante, con cada campo vacío marcado puntualmente (ej. "FALTA CIUDAD") para completar a mano.' }
   ];
 
   // --- Descompresor DEFLATE propio (reemplaza pako), sin dependencias externas ---
@@ -587,6 +627,39 @@
     checkReady();
   });
 
+  // --- Etapa 2 · Dash: estado y carga de archivos ---
+  const state2 = { odoo:null, billing:null };
+  function checkReady2(){
+    document.getElementById('btn-process-2').disabled = !(state2.odoo && state2.billing);
+  }
+
+  document.getElementById('f2-odoo').addEventListener('change', async e => {
+    const f = e.target.files[0]; if(!f) return;
+    try{
+      const esCsv = /\.csv$/i.test(f.name);
+      state2.odoo = esCsv ? await readOdooCsv(f) : normalizeOdooRows(await readXlsx(f));
+      setStatus('s2-odoo', state2.odoo.length + ' filas cargadas' + (esCsv ? ' (CSV)' : ' (XLSX)'), true);
+    } catch(err){ setStatus('s2-odoo', 'Error al leer archivo: ' + err.message, false); }
+    checkReady2();
+  });
+
+  document.getElementById('f2-dashzip').addEventListener('change', async e => {
+    const f = e.target.files[0]; if(!f) return;
+    try{
+      const buf = await f.arrayBuffer();
+      const entries = readZipEntries(buf);
+      const billEntry = entries.find(en => /billing.*\.csv$/i.test(en.name));
+      if(!billEntry){
+        const nombres = entries.map(en => en.name).join(', ');
+        setStatus('s2-dashzip', 'No se encontró billing_*.csv. Archivos en el zip: ' + nombres, false);
+        return;
+      }
+      state2.billing = parseCsvRows(extractZipEntryText(buf, billEntry));
+      setStatus('s2-dashzip', 'Billing: ' + state2.billing.length + ' filas', true);
+    } catch(err){ setStatus('s2-dashzip', 'Error al leer el zip: ' + err.message, false); }
+    checkReady2();
+  });
+
   // --- Generador XLSX propio (sin librerías externas): zip "stored" + OOXML mínimo ---
   function crc32(bytes){
     if(!crc32.table){
@@ -762,6 +835,38 @@
     html += '</tbody></table></div>';
     if(rows.length > shown.length) html += '<p style="font-size:11px;color:#9ca3af;margin-top:6px;">Mostrando ' + shown.length + ' de ' + rows.length + '.</p>';
     return html;
+  }
+
+  // Descarga como CSV real (Dash pide el archivo separado por comas, no xlsx).
+  window.vcDownloadCsv = function(bucketName){
+    try{
+      const rows = window.__vcBuckets[bucketName];
+      const title = (window.__vcTitles && window.__vcTitles[bucketName]) || bucketName;
+      const fname = safeFileName(title) + '.csv';
+      const csv = toCsv(rows);
+      const blob = new Blob(["\ufeff" + csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fname; a.click();
+      URL.revokeObjectURL(url);
+    } catch(e){ /* si falla, el usuario tiene el botón "Copiar" y el texto seleccionable como respaldo */ }
+  };
+
+  function sectionCsv(id, title, rows, note, pillType, pillLabel){
+    window.__vcTitles = window.__vcTitles || {};
+    window.__vcTitles[id] = title;
+    const pill = pillType ? '<span class="vc-pill ' + pillType + '">' + pillLabel + '</span>' : '';
+    const disabled = rows.length ? '' : 'disabled';
+    return '<div class="vc-section"><div class="vc-section-head" onclick="vcToggle(\'' + id + '\')"><h3>' + title + pill + '</h3>' +
+      '<span>' +
+        '<button class="vc-btn ghost" onclick="event.stopPropagation(); vcDownloadCsv(\'' + id + '\')" ' + disabled + '>Descargar .csv</button> ' +
+        '<button class="vc-btn ghost" onclick="event.stopPropagation(); vcCopy(\'' + id + '\', this)" ' + disabled + '>Copiar CSV</button>' +
+      '</span></div>' +
+      '<div class="vc-section-body" id="' + id + '">' +
+        (note ? '<p class="vc-note">' + note + '</p>' : '') +
+        renderTable(rows) +
+        '<textarea id="' + id + '_text" readonly onclick="this.select()" placeholder="Si &quot;Descargar&quot; o &quot;Copiar&quot; no funcionan en tu entorno, hacé click acá, Ctrl+A y Ctrl+C para copiar el CSV manualmente." style="width:100%;min-height:110px;margin-top:10px;font-family:monospace;font-size:11px;padding:8px;border:1px solid var(--border);border-radius:8px;color:var(--texto);background:#fafafd;"></textarea>' +
+      '</div></div>';
   }
 
   function section(id, title, rows, note, pillType, pillLabel){
@@ -1046,13 +1151,120 @@
     log.textContent = 'Listo — ' + totalAR + ' cuentas AR procesadas.';
   });
 
-  // Panel de reglas: de solo lectura, se renderiza una vez al cargar la página.
+  // --- Etapa 2 · Dash: importar contactos que Odoo ya tiene pero Dash todavía no ---
+  function mapSituacionInversa(raw){
+    if(!raw) return '';
+    const s = String(raw).trim().toLowerCase();
+    const map = {
+      'iva responsable inscripto': 'Responsable inscripto',
+      'responsable monotributo': 'Monotributo',
+      'consumidor final': 'Consumidor final',
+      'iva sujeto exento': 'Exento'
+    };
+    return map[s] || raw;
+  }
+
+  document.getElementById('btn-process-2').addEventListener('click', function(){
+    const log2 = document.getElementById('proc-log-2');
+    log2.textContent = 'Procesando...';
+
+    const billingByAcc2 = new Map();
+    state2.billing.forEach(r => {
+      if((r['País']||'').trim() !== 'Argentina') return;
+      const id = normId(r['ID']);
+      if(id) billingByAcc2.set(id, r);
+    });
+
+    const odooByRef2 = new Map();
+    state2.odoo.forEach(r => {
+      const refRaw = String(r['Referencia'] || '').trim();
+      if(/_old$/i.test(refRaw)) return;
+      if(r['Activo'] === false) return;
+      const ref = normId(refRaw);
+      if(!ref) return;
+      if(!odooByRef2.has(ref)) odooByRef2.set(ref, r); // si hay duplicados, se queda con el primero
+    });
+
+    const CAMPOS_DASH = ['ID','Tipo de identificación','Código','Razón social','Ciudad','Estado','Domicilio','Situación ante el impuesto','Email','Código postal'];
+    const completos = [], incompletos = [];
+
+    odooByRef2.forEach((odoo, id) => {
+      const nif = String(odoo['NIF'] || '').trim();
+      if(!nif) return; // sin NIF en Odoo, no hay nada para pasar a Dash
+
+      const billing = billingByAcc2.get(id);
+      const billingTieneCodigo = billing && String(billing['Código'] || '').trim();
+      if(billingTieneCodigo) return; // Dash ya tiene el dato, no hace falta importar nada
+
+      const fila = {
+        'ID': id,
+        'Tipo de identificación': odoo['TipoIdentificacion'] || '',
+        'Código': nif,
+        'Razón social': odoo['Nombre'] || '',
+        'Ciudad': findKeyCI(odoo, 'Ciudad') || '',
+        'Estado': findKeyCI(odoo, 'Provincia') || '',
+        'Domicilio': findKeyCI(odoo, 'Calle') || '',
+        'Situación ante el impuesto': mapSituacionInversa(odoo['Tipo de Responsabilidad AFIP']),
+        'Email': odoo['Correo electrónico'] || '',
+        'Código postal': findKeyCI(odoo, 'C.P.') || findKeyCI(odoo, 'CP') || findKeyCI(odoo, 'Código postal') || ''
+      };
+
+      let faltaAlgo = false;
+      const filaMarcada = {};
+      CAMPOS_DASH.forEach(campo => {
+        const val = fila[campo];
+        if(val === undefined || val === null || String(val).trim() === ''){
+          filaMarcada[campo] = '⚠ FALTA ' + campo.toUpperCase();
+          faltaAlgo = true;
+        } else {
+          filaMarcada[campo] = val;
+        }
+      });
+
+      if(faltaAlgo){ incompletos.push(filaMarcada); }
+      else { completos.push(fila); }
+    });
+
+    window.__vcBuckets = window.__vcBuckets || {};
+    window.__vcBuckets['dash_completos'] = completos;
+    window.__vcBuckets['dash_incompletos'] = incompletos;
+
+    const results2 = document.getElementById('results-2');
+    results2.style.display = 'block';
+    const banner2 = incompletos.length > 0
+      ? '<p class="vc-note" style="background:#fef9c3;color:#854d0e;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-weight:600;">⚠️ ' + incompletos.length + ' cuenta' + (incompletos.length===1?'':'s') + ' con datos incompletos — revisar antes de importar.</p>'
+      : '';
+    results2.innerHTML =
+      banner2 +
+      '<div class="vc-summary">' +
+        '<div class="vc-metric" style="background:var(--naranja);"><span class="n" style="color:#fff;">' + (completos.length + incompletos.length) + '</span><span class="l" style="color:#fff;">Cuentas a importar a Dash</span></div>' +
+        '<div class="vc-metric"><span class="n" style="color:#15803d;">' + completos.length + '</span><span class="l">Listas para importar</span></div>' +
+        '<div class="vc-metric"><span class="n" style="color:#854d0e;">' + incompletos.length + '</span><span class="l">Con datos faltantes</span></div>' +
+      '</div>' +
+      sectionCsv('dash_completos', 'Import a Dash — listas para importar', completos, 'CSV separado por comas, con las 9 columnas que pide Dash. Todos los campos están completos.', 'paid', 'Completo') +
+      sectionCsv('dash_incompletos', 'Revisar antes de importar', incompletos, 'Cada celda vacía quedó marcada con el campo que falta (ej. "FALTA CIUDAD"). Completá a mano en Odoo o Dash y volvé a correr el análisis.', 'cancelled', 'Incompleto');
+
+    log2.textContent = 'Listo — ' + (completos.length + incompletos.length) + ' cuentas para Dash.';
+  });
+
+  // Panel de reglas: de solo lectura, cambia según la solapa activa.
+  let etapaActiva = 1;
   function renderReglas(){
     const cont = document.getElementById('reglas-cards');
-    cont.innerHTML = REGLAS.map(r =>
+    const reglas = etapaActiva === 1 ? REGLAS_ETAPA1 : REGLAS_ETAPA2;
+    cont.innerHTML = reglas.map(r =>
       '<div class="vc-rule-card"><h4>' + r.titulo + '</h4><p>' + r.texto + '</p></div>'
     ).join('');
   }
+
+  window.vcSetEtapa = function(n){
+    etapaActiva = n;
+    document.getElementById('tab-etapa1').classList.toggle('active', n === 1);
+    document.getElementById('tab-etapa2').classList.toggle('active', n === 2);
+    document.getElementById('etapa1-panel').style.display = n === 1 ? '' : 'none';
+    document.getElementById('etapa2-panel').style.display = n === 2 ? '' : 'none';
+    renderReglas();
+  };
 
   renderReglas();
 })();
