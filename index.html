@@ -65,10 +65,9 @@
   table.vc-t td { padding: 6px 9px; border-bottom: 1px solid var(--border); white-space: nowrap; color: var(--texto); }
   table.vc-t tr:nth-child(even) td { background: #FAFAFF; }
 
-  .vc-notes textarea { width: 100%; min-height: 90px; font-size: 12.5px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; color: var(--texto); background: #fff; }
-  .vc-caselist { font-size: 12.5px; list-style: none; padding: 0; margin: 0; }
-  .vc-caselist li { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border); color: var(--texto); }
-  .vc-tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-right: 8px; background: var(--fondo); color: var(--navy); }
+  .vc-rule-card { background: var(--fondo); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .vc-rule-card h4 { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: var(--navy); }
+  .vc-rule-card p { margin: 0; font-size: 12.5px; color: var(--texto); line-height: 1.5; }
   .vc-log { font-size: 11.5px; font-weight: 600; color: var(--navy); margin-left: 12px; }
   .vc-inputrow input[type=text] { font-family: inherit; }
 </style>
@@ -113,34 +112,36 @@
   <div class="vc-section" style="margin-top:24px;">
     <div class="vc-section-head" onclick="vcToggle('sec-reglas')">
       <h3>Reglas activas</h3>
-      <span class="vc-btn ghost">Ver / editar</span>
+      <span class="vc-btn ghost">Ver</span>
     </div>
     <div class="vc-section-body" id="sec-reglas">
-      <div class="vc-notes">
-        <textarea id="notas-reglas" placeholder="Notas sobre las reglas activas..."></textarea>
-        <div style="margin-top:8px;"><button class="vc-btn navy" onclick="vcGuardarNotas()">Guardar notas</button> <span id="notas-status" class="vc-log"></span></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="vc-section">
-    <div class="vc-section-head" onclick="vcToggle('sec-casos')">
-      <h3>Casos especiales guardados</h3>
-      <span class="vc-btn ghost">Ver / agregar</span>
-    </div>
-    <div class="vc-section-body" id="sec-casos">
-      <ul class="vc-caselist" id="lista-casos"></ul>
-      <div style="display:flex; gap:6px; margin-top:8px;">
-        <input type="text" id="nuevo-caso" placeholder="Ej: Referencia 244858 - dos condiciones fiscales, revisar manual" style="flex:1; font-size:12px; padding:8px 10px; border:1.5px solid var(--muted); border-radius:6px;" />
-        <button class="vc-btn navy" onclick="vcAgregarCaso()">Agregar</button>
-      </div>
+      <p class="vc-note" style="margin-top:0;">Esto es de solo lectura: refleja la lógica que corre hoy en esta versión del archivo. Para cambiar una regla no se edita acá — se pide el cambio directamente y se sube el archivo actualizado a GitHub, así todo el equipo ve siempre la misma versión y queda el historial en los commits del repo.</p>
+      <div id="reglas-cards"></div>
     </div>
   </div>
 </div>
 
 <script>
 (function(){
-  const REGLAS_DEFAULT = "Prioridad de fuente: si Billing.Codigo existe (CUIT/DNI real), Billing manda. Si Billing.Codigo NO existe (Sin datos/0), se consulta Metabase (Comandarina + approved) como respaldo.\n\nRegla 1 - OK sin accion: Billing.Codigo existe, NIF=Codigo, Mail=Email y el contacto esta Activo en Odoo. (Incluye tambien el caso Aprobado: sin billing, sin Metabase, ya existe en Odoo como Consumidor Final -> no se toca).\nRegla 1b - Reactivar: igual que Regla 1 (NIF y mail coinciden) pero el contacto esta Archivado en Odoo -> se genera una actualizacion que pone Activo=TRUE (cliente viejo que volvio a facturar). Las reglas 2, 3b y 4a tambien reactivan de forma automatica si encuentran el contacto archivado, porque ya fuerzan Activo=TRUE en su fila de actualizacion.\nRegla 2 - Actualizar mail: Billing.Codigo existe, NIF=Codigo, Mail!=Email.\nRegla 3a - Baja + Alta: Billing.Codigo existe, NIF!=Codigo, y el NIF de Odoo NO esta vacio (otra razon social, otro CUIT). Se da de baja el contacto viejo y se crea uno nuevo con los datos de Billing.\nRegla 3b - Actualizar mismo contacto: Billing.Codigo existe, NIF!=Codigo, y el NIF de Odoo SI esta vacio (nunca tuvo uno cargado) -> se actualiza el contacto existente en vez de dar de baja.\nRegla 4a - Actualizar via Metabase: Billing.Codigo NO existe, Odoo ya existe, Metabase aprobado (Comandarina+approved) -> actualiza NIF/Razon social/Situacion con datos de Metabase.\nRegla 4b - Alta via Metabase: Billing.Codigo NO existe, Odoo no existe, Metabase aprobado -> alta nueva con datos de Metabase.\nRegla 5 - Alta directa: Billing.Codigo existe, Odoo no existe -> alta nueva con datos de Billing (respeta si es CUIT o DNI).\nRegla 6 - Alta Consumidor Final: Billing.Codigo NO existe, Metabase sin aprobado, Odoo no existe -> alta como Consumidor Final sin NIF, tipo de identificacion Sigd.\n\nIMPORTANTE - Output 2 vs Output 3 y Tipo de Responsabilidad AFIP:\nEn el Output 2 (actualizaciones de reglas 2, 3b, 4a, 1b) la Tipo de Responsabilidad AFIP SI refleja la situacion fiscal real (mapeada desde Billing/Metabase), porque es una correccion sobre un contacto que ya existe.\nEn el Output 3 (altas nuevas: 5, 6, 4b, 3a-alta) la Tipo de Responsabilidad AFIP va SIEMPRE fija en 'Consumidor Final', sin importar la situacion real de Billing/Metabase, porque ARCA actualiza ese estado automaticamente despues. No cambiar esto aunque parezca inconsistente con Billing.\n\nFORMATO DE ENTRADA DE ODOO (se detecta automaticamente, acepta .xlsx o .csv, UTF-8 o windows-1252, separador , o ;):\n- Formato viejo (headers en espanol): Referencia | Nombre | NIF | Correo electronico | Tipo de Responsabilidad AFIP | Enlace a pagina web | ID | Activo/Estado.\n- Formato nuevo (headers tecnicos, con External ID adelante): .id | id | ref | name | vat | email | l10n_ar_afip_responsibility_type_id | website | active. Ademas debe incluir el Tipo de identificacion actual en Odoo (columna 'l10n_latam_identification_type_id' o 'Tipo de identificacion') para poder actualizar el NIF sin el error de Odoo 'Longitud invalida' (el tipo de ID debe viajar junto con el NIF nuevo). Todo se normaliza a: ExternalID | ID | Referencia | Nombre | NIF | TipoIdentificacion | Correo electronico | Tipo de Responsabilidad AFIP | Enlace a pagina web | Activo.\n\nFORMATO DE OUTPUTS (XLSX, generados sin librerias externas):\nOutput 1 - Analisis completo (backup): Referencia | Nombre | CUIT_Billing | RazonSocial_Billing | Situacion_Billing | Email_Billing | Regla | Accion | Detalle. Una fila por cada cuenta AR.\nOutput 2 - Actualizar contactos en Odoo (reglas 1b, 2, 3a-baja, 3b, 4a): External ID | ID | Referencia | Nombre | NIF | Tipo de identificacion | Correo electronico | Tipo de Responsabilidad AFIP | Enlace a pagina web | Activo. Al importar en Odoo mapear 'External ID' al campo External ID (asi actualiza en vez de crear); 'ID' queda solo de referencia. La columna Tipo de identificacion viaja junto con el NIF en 3b/4a (evita error de longitud); en el resto repite el tipo que el contacto ya tenia.\nOutput 3 - Alta de contactos nuevos en Odoo (reglas 3a-alta, 4b, 5, 6), formato basado en la plantilla 'Importacion_clientes_arg': Nombre | Tipo de compañia | Nombre de la calle | Idioma | Ciudad | Pais | Tipo de identificacion | NIF | Tipo de Responsabilidad AFIP | Correo electronico | Referencia | Compañia | Enlace a pagina web | Grupo (no importar, solo referencia interna). Sin columna ID ni External ID. 'Tipo de compania'='Compañia', Idioma='Spanish / Español', Pais='Argentina', Compañia='COMANDARINA S.R.L.' fijos siempre. Tipo de Responsabilidad AFIP='Consumidor Final' fijo siempre (ver nota arriba). Nombre de la calle y Ciudad solo se completan en el caso DNI (vienen de Billing.Domicilio/Billing.Ciudad), vacios en el resto. Prioridad de mail: Billing.Email si tiene dato, sino Admin (Dash); en los casos sin billing (6 y 4b) siempre es Admin. Sub-casos (columna Grupo): 'CUIT'/'DNI' (regla 5, segun Billing.Tipo de identificacion), '4b (Metabase)' (NIF y razon social de Metabase), 'Sin datos (Sigd)' (regla 6, sin NIF), '3a - alta' (contraparte de la baja de 3a, mismo criterio que CUIT/DNI).\nMapeo Dash/Metabase -> Odoo de situacion fiscal (usado solo en Output 2, NO en Output 3): responsable inscripto/responsable_inscripto -> IVA Responsable Inscripto; monotributo/monotributista -> Responsable Monotributo; consumidor final -> Consumidor Final; exento -> IVA Sujeto Exento.\n\nPendiente: definir el formato de importacion para Dash (etapa 2, con el Odoo ya actualizado).";
+  const REGLAS = [
+    { titulo: 'Prioridad de fuente', texto: 'Si Billing.Código existe (CUIT/DNI real), Billing manda. Si Billing.Código NO existe (Sin datos/0), se consulta Metabase (Comandarina + approved) como respaldo.' },
+    { titulo: 'Regla 1 — OK, sin acción', texto: 'Billing.Código existe, NIF = Código, Mail = Email, y el contacto está Activo en Odoo. Incluye el caso "Aprobado": sin billing, sin Metabase, ya existe en Odoo como Consumidor Final → no se toca.' },
+    { titulo: 'Regla 1b — Reactivar', texto: 'Igual que la Regla 1 (NIF y mail coinciden) pero el contacto está Archivado en Odoo → se genera una actualización que pone Activo = TRUE (cliente viejo que volvió a facturar). Las reglas 2, 3b y 4a también reactivan automáticamente si encuentran el contacto archivado.' },
+    { titulo: 'Regla 2 — Actualizar mail', texto: 'Billing.Código existe, NIF = Código, Mail ≠ Email → se actualiza solo el mail.' },
+    { titulo: 'Regla 3a — Baja + Alta', texto: 'Billing.Código existe, NIF ≠ Código, y el NIF de Odoo NO está vacío (otra razón social / otro CUIT) → se da de baja el contacto viejo y se crea uno nuevo con los datos de Billing.' },
+    { titulo: 'Regla 3b — Actualizar mismo contacto', texto: 'Billing.Código existe, NIF ≠ Código, y el NIF de Odoo SÍ está vacío (nunca tuvo uno cargado) → se actualiza el contacto existente en vez de dar de baja.' },
+    { titulo: 'Regla 4a — Actualizar vía Metabase', texto: 'Billing.Código NO existe, Odoo ya existe, Metabase aprobado (Comandarina + approved) → actualiza NIF / Razón social / Situación con datos de Metabase.' },
+    { titulo: 'Regla 4b — Alta vía Metabase', texto: 'Billing.Código NO existe, Odoo no existe, Metabase aprobado → alta nueva con datos de Metabase.' },
+    { titulo: 'Regla 5 — Alta directa', texto: 'Billing.Código existe, Odoo no existe → alta nueva con datos de Billing (respeta si es CUIT o DNI).' },
+    { titulo: 'Regla 6 — Alta Consumidor Final', texto: 'Billing.Código NO existe, Metabase sin aprobado, Odoo no existe → alta como Consumidor Final sin NIF, tipo de identificación Sigd.' },
+    { titulo: 'Output 2 vs Output 3 — Tipo de Responsabilidad AFIP', texto: 'En el Output 2 (actualizaciones) la Responsabilidad AFIP refleja la situación fiscal real, mapeada de Billing/Metabase. En el Output 3 (altas nuevas) va siempre fija en "Consumidor Final", porque ARCA la actualiza sola después.' },
+    { titulo: 'Formato de entrada de Odoo', texto: 'Acepta .xlsx o .csv, formato viejo (headers en español) o nuevo (técnico, con External ID y Tipo de identificación adelante). El Tipo de identificación en Odoo viaja junto con el NIF en las reglas 3b/4a para evitar el error "Longitud inválida".' },
+    { titulo: 'Output 1 — Análisis completo', texto: 'Una fila por cada cuenta AR con la regla y acción aplicada. Sirve de backup/auditoría de cada corrida.' },
+    { titulo: 'Output 2 — Actualizar contactos en Odoo', texto: 'Incluye reglas 1b, 2, 3a (baja), 3b y 4a. Al importar, mapear "External ID" al campo External ID para que actualice en vez de crear.' },
+    { titulo: 'Output 3 — Alta de contactos en Odoo', texto: 'Incluye reglas 3a (alta), 4b, 5 y 6. Plantilla Comandarina, sin columna ID. Sub-casos: CUIT, DNI (con domicilio/ciudad), Sin datos (Sigd), 4b (Metabase), 3a-alta. Prioridad de mail: Billing.Email si existe, si no Admin (Dash).' },
+    { titulo: 'Mapeo de situación fiscal (Dash/Metabase → Odoo)', texto: 'Responsable inscripto / responsable_inscripto → IVA Responsable Inscripto. Monotributo / monotributista → Responsable Monotributo. Consumidor final → Consumidor Final. Exento → IVA Sujeto Exento. (Solo aplica en Output 2, no en Output 3).' },
+    { titulo: 'Pendiente', texto: 'Definir el formato de importación para Dash (Etapa 2, con el Odoo ya actualizado).' }
+  ];
 
   // --- Descompresor DEFLATE propio (reemplaza pako), sin dependencias externas ---
   function inflateRaw(input){
@@ -312,7 +313,8 @@
     return isNaN(n) ? null : String(n);
   }
 
-  // --- Lector XLSX propio (zip + XML nativo del navegador), reemplaza SheetJS ---
+  // --- Lector XLSX propio (zip + parser por regex, sin DOMParser: mucho mas rapido con archivos grandes
+  //     o con muchos hipervinculos, que generan decenas de miles de textos compartidos) ---
   function colToIndex(ref){
     const m = ref.match(/^[A-Z]+/);
     const letters = m ? m[0] : 'A';
@@ -320,42 +322,56 @@
     for(let i=0;i<letters.length;i++){ idx = idx*26 + (letters.charCodeAt(i)-64); }
     return idx-1;
   }
+  function xmlUnescape(s){
+    return s
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+      .replace(/&amp;/g, '&');
+  }
   function parseSharedStrings(xmlText){
     if(!xmlText) return [];
-    const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
-    const siNodes = doc.getElementsByTagName('si');
     const arr = [];
-    for(let i=0;i<siNodes.length;i++){
-      const tNodes = siNodes[i].getElementsByTagName('t');
-      let text = '';
-      for(let j=0;j<tNodes.length;j++) text += tNodes[j].textContent;
+    const siRegex = /<si[^>]*>([\s\S]*?)<\/si>/g;
+    const tRegex = /<t[^>]*>([\s\S]*?)<\/t>/g;
+    let m;
+    while((m = siRegex.exec(xmlText))){
+      let text = '', tm;
+      tRegex.lastIndex = 0;
+      while((tm = tRegex.exec(m[1]))){ text += xmlUnescape(tm[1]); }
       arr.push(text);
     }
     return arr;
   }
   function parseSheetRows(xmlText, sharedStrings){
-    const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
-    const rowNodes = doc.getElementsByTagName('row');
+    const rowRegex = /<row\b[^>]*>([\s\S]*?)<\/row>/g;
+    const cellRegex = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
     const aoa = [];
     let maxCol = 0;
-    for(let r=0;r<rowNodes.length;r++){
-      const cNodes = rowNodes[r].getElementsByTagName('c');
+    let rm;
+    while((rm = rowRegex.exec(xmlText))){
       const rowArr = [];
-      for(let ci=0; ci<cNodes.length; ci++){
-        const c = cNodes[ci];
-        const ref = c.getAttribute('r') || '';
-        const colIdx = ref ? colToIndex(ref) : ci;
-        const t = c.getAttribute('t');
+      cellRegex.lastIndex = 0;
+      let cm, ci = 0;
+      while((cm = cellRegex.exec(rm[1]))){
+        const attrs = cm[1] || '';
+        const inner = cm[2] || '';
+        const refMatch = attrs.match(/r="([^"]+)"/);
+        const colIdx = refMatch ? colToIndex(refMatch[1]) : ci;
+        const typeMatch = attrs.match(/t="([^"]+)"/);
+        const t = typeMatch ? typeMatch[1] : null;
         let value = '';
         if(t === 'inlineStr'){
-          const isNode = c.getElementsByTagName('is')[0];
-          if(isNode){
-            const tNodes = isNode.getElementsByTagName('t');
-            for(let k=0;k<tNodes.length;k++) value += tNodes[k].textContent;
+          const isMatch = inner.match(/<is>([\s\S]*?)<\/is>/);
+          if(isMatch){
+            const tRe = /<t[^>]*>([\s\S]*?)<\/t>/g;
+            let tm, text = '';
+            while((tm = tRe.exec(isMatch[1]))){ text += xmlUnescape(tm[1]); }
+            value = text;
           }
         } else {
-          const vNode = c.getElementsByTagName('v')[0];
-          const raw = vNode ? vNode.textContent : '';
+          const vMatch = inner.match(/<v>([\s\S]*?)<\/v>/);
+          const raw = vMatch ? xmlUnescape(vMatch[1]) : '';
           if(t === 's'){ const idx = parseInt(raw,10); value = sharedStrings[idx] !== undefined ? sharedStrings[idx] : ''; }
           else if(t === 'str'){ value = raw; }
           else if(t === 'b'){ value = raw === '1'; }
@@ -364,12 +380,19 @@
         }
         rowArr[colIdx] = value;
         if(colIdx > maxCol) maxCol = colIdx;
+        ci++;
       }
       aoa.push(rowArr);
     }
     if(!aoa.length) return [];
+    // Deduplicar headers repetidos (ej: dos columnas "ID"): la segunda pasa a llamarse "ID (2)".
     const header = [];
-    for(let i=0;i<=maxCol;i++) header.push(aoa[0][i] !== undefined ? String(aoa[0][i]) : '');
+    const vistos = {};
+    for(let i=0;i<=maxCol;i++){
+      const raw = aoa[0][i] !== undefined ? String(aoa[0][i]) : '';
+      if(vistos[raw] === undefined){ vistos[raw] = 0; header.push(raw); }
+      else { vistos[raw]++; header.push(raw + ' (' + (vistos[raw]+1) + ')'); }
+    }
     const out = [];
     for(let r=1;r<aoa.length;r++){
       const rowArr = aoa[r] || [];
@@ -454,21 +477,31 @@
     return out;
   }
 
-  // Lee un CSV probando UTF-8 primero; si detecta caracteres de reemplazo (mojibake), reintenta con windows-1252
   // Normaliza filas de Odoo a un esquema único, sin importar si vienen con headers
   // en español (formato viejo) o con nombres técnicos + External ID (formato nuevo).
+  function findKeyCI(obj, name){
+    const target = name.toLowerCase();
+    for(const k in obj){ if(k.toLowerCase() === target) return obj[k]; }
+    return undefined;
+  }
   function normalizeOdooRows(rows){
     if(!rows.length) return rows;
     const keys = Object.keys(rows[0]);
     const esFormatoTecnico = keys.includes('ref') && keys.includes('vat');
     // Nombre de columna del tipo de identificación actual en Odoo: puede venir con nombre tecnico
-    // (l10n_latam_identification_type_id) o en español (Tipo de identificación), según cómo se arme el export.
+    // (l10n_latam_identification_type_id) o en español ("Tipo de identificación"/"Tipo de Identificación",
+    // segun mayusculas del export), y a veces con sufijo " (AR)" (ej: "CUIT (AR)") que se limpia acá.
     function tipoIdent(r){
-      return r['l10n_latam_identification_type_id'] || r['Tipo de identificación'] || r['TipoIdentificacion'] || '';
+      const raw = findKeyCI(r, 'l10n_latam_identification_type_id') || findKeyCI(r, 'Tipo de identificación') || findKeyCI(r, 'TipoIdentificacion') || '';
+      return String(raw).replace(/\s*\(AR\)\s*$/i, '').trim();
     }
     if(!esFormatoTecnico){
       // Formato viejo (headers en español). Si vino de CSV con "Estado", ya se mapeó Activo en readOdooCsv.
-      return rows.map(r => Object.assign({ ExternalID: '', TipoIdentificacion: tipoIdent(r) }, r));
+      // Si el Excel traia dos columnas "ID" (Database ID + External ID), el lector las separo como "ID" y "ID (2)".
+      return rows.map(r => {
+        const externalDeDup = r['ID (2)'] !== undefined ? r['ID (2)'] : '';
+        return Object.assign({ ExternalID: externalDeDup, TipoIdentificacion: tipoIdent(r) }, r);
+      });
     }
     return rows.map(r => ({
       ExternalID: r['.id'] || '',
@@ -752,7 +785,9 @@
 
     const odooByRef = new Map();
     state.odoo.forEach(r => {
-      const ref = normId(r['Referencia']);
+      const refRaw = String(r['Referencia'] || '').trim();
+      if(/_old$/i.test(refRaw)) return; // contacto ya dado de baja en una corrida anterior (Regla 3a) — no participa en el matcheo activo
+      const ref = normId(refRaw);
       if(!ref) return;
       if(!odooByRef.has(ref)) odooByRef.set(ref, []);
       odooByRef.get(ref).push(r);
@@ -971,83 +1006,20 @@
       section('output1', 'Output 1 — Análisis completo (backup)', output1, 'Una fila por cada cuenta AR de Dash, con la regla y acción aplicada. Guardalo como respaldo de cada corrida.', 'paid', 'Backup') +
       section('output2', 'Output 2 — Actualizar contactos existentes en Odoo', output2, 'Incluye reglas 1b (reactivar), 2, 3a (baja), 3b y 4a. Al importar en Odoo, mapeá la columna "External ID" al campo External ID para que actualice el contacto en vez de crear uno nuevo (columna "ID" queda solo de referencia). La columna "Tipo de identificación" viaja junto con el NIF en las reglas 3b y 4a para evitar el error de "longitud inválida" en Odoo; en el resto de las reglas repite el tipo que el contacto ya tenía. Las cuentas de la regla 3a aportan 1 fila acá (la baja) y otra fila más en el Output 3 (la alta) — por eso ' + output2.length + ' filas no equivale a ' + output2.length + ' cuentas distintas.', 'pending', 'Actualizar') +
       section('output3', 'Output 3 — Alta de contactos nuevos en Odoo', output3, 'Incluye reglas 3a (alta), 4b, 5 y 6. Sin columna ID: Odoo los va a crear como contactos nuevos. Las ' + r3a_alta_pend.length + ' filas de la regla 3a acá son la contraparte de las bajas del Output 2 (mismo cuenta, contacto nuevo).', 'refunded', 'Alta') +
-      section('excepciones', 'Excepciones (Referencia duplicada en Odoo, etc.)', excepciones, 'Quedan fuera de los outputs 2 y 3 — requieren revisión manual.', 'cancelled', 'Excepción') +
-      '<div class="vc-section"><div class="vc-section-head" onclick="vcToggle(\'detalle_reglas\')"><h3>Detalle por regla (para depurar la clasificación)</h3></div>' +
-      '<div class="vc-section-body" id="detalle_reglas">' +
-        section('r1_ok', 'Regla 1 / Aprobado — Validados OK', r1_ok, null, 'paid', 'Validado') +
-        section('r1b_reactivar', 'Regla 1b — Reactivar (estaba archivado, datos coinciden)', r1b_reactivar, 'Cliente que había sido archivado por falta de facturación y ahora volvió a tener datos vigentes en Billing.', 'pending', String(r1b_reactivar.length)) +
-        section('r2_mail', 'Regla 2 — Actualizar mail', r2_mail, null, 'pending', String(r2_mail.length)) +
-        section('r3a_baja', 'Regla 3a — Baja', r3a_baja, null, 'cancelled', String(r3a_baja.length)) +
-        section('r3a_alta_pend', 'Regla 3a — Alta (contraparte de la baja)', r3a_alta_pend, null, 'cancelled', String(r3a_alta_pend.length)) +
-        section('r3b_update', 'Regla 3b — Actualizar (NIF vacío)', r3b_update, null, 'pending', String(r3b_update.length)) +
-        section('r4a_update', 'Regla 4a — Actualizar vía Metabase', r4a_update, null, 'pending', String(r4a_update.length)) +
-        section('r4b_alta', 'Regla 4b — Alta vía Metabase', r4b_alta, null, 'refunded', String(r4b_alta.length)) +
-        section('r5_alta', 'Regla 5 — Alta directa (Billing)', r5_alta, null, 'refunded', String(r5_alta.length)) +
-        section('r6_alta_cf', 'Regla 6 — Alta Consumidor Final', r6_alta_cf, null, 'refunded', String(r6_alta_cf.length)) +
-      '</div></div>';
+      section('excepciones', 'Excepciones (Referencia duplicada en Odoo, etc.)', excepciones, 'Quedan fuera de los outputs 2 y 3 — requieren revisión manual.', 'cancelled', 'Excepción');
 
     log.textContent = 'Listo — ' + totalAR + ' cuentas AR procesadas.';
   });
 
-  // --- Persistencia con localStorage del navegador (funciona en cualquier hosting) ---
-  const LS_PREFIX = 'vc_';
-
-  function lsGet(key){
-    try{ return localStorage.getItem(LS_PREFIX + key); } catch(e){ return null; }
-  }
-  function lsSet(key, value){
-    try{ localStorage.setItem(LS_PREFIX + key, value); return true; } catch(e){ return false; }
+  // Panel de reglas: de solo lectura, se renderiza una vez al cargar la página.
+  function renderReglas(){
+    const cont = document.getElementById('reglas-cards');
+    cont.innerHTML = REGLAS.map(r =>
+      '<div class="vc-rule-card"><h4>' + r.titulo + '</h4><p>' + r.texto + '</p></div>'
+    ).join('');
   }
 
-  async function loadPersisted(){
-    const val = lsGet('notas-reglas');
-    document.getElementById('notas-reglas').value = (val !== null) ? val : REGLAS_DEFAULT;
-    await renderCasos();
-  }
-
-  window.vcGuardarNotas = async function(){
-    const val = document.getElementById('notas-reglas').value;
-    const st = document.getElementById('notas-status');
-    const ok = lsSet('notas-reglas', val);
-    st.textContent = ok ? 'Guardado.' : 'Error al guardar.';
-    if(ok) setTimeout(()=>{ st.textContent=''; }, 2000);
-  };
-
-  async function getCasos(){
-    const raw = lsGet('casos-especiales');
-    try{ return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
-  }
-
-  async function renderCasos(){
-    const casos = await getCasos();
-    const ul = document.getElementById('lista-casos');
-    if(!casos.length){ ul.innerHTML = '<li style="color:#9ca3af;">Todavía no hay casos guardados.</li>'; return; }
-    ul.innerHTML = casos.slice().reverse().map((c,i) => {
-      const idx = casos.length - 1 - i;
-      return '<li><span class="vc-tag">' + c.fecha + '</span>' + c.texto +
-        ' <button class="vc-btn ghost" style="padding:2px 8px;font-size:10.5px;" onclick="vcBorrarCaso(' + idx + ')">Borrar</button></li>';
-    }).join('');
-  }
-
-  window.vcAgregarCaso = async function(){
-    const input = document.getElementById('nuevo-caso');
-    const texto = input.value.trim();
-    if(!texto) return;
-    const casos = await getCasos();
-    casos.push({fecha: new Date().toISOString().slice(0,10), texto});
-    lsSet('casos-especiales', JSON.stringify(casos));
-    input.value = '';
-    renderCasos();
-  };
-
-  window.vcBorrarCaso = async function(idx){
-    const casos = await getCasos();
-    casos.splice(idx, 1);
-    lsSet('casos-especiales', JSON.stringify(casos));
-    renderCasos();
-  };
-
-  loadPersisted();
+  renderReglas();
 })();
 </script>
 </body>
