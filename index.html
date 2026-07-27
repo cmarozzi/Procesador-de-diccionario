@@ -128,6 +128,7 @@
     { titulo: 'Regla 1 — OK, sin acción', texto: 'Billing.Código existe, NIF = Código, Mail = Email, y el contacto está Activo en Odoo. Incluye el caso "Aprobado": sin billing, sin Metabase, ya existe en Odoo como Consumidor Final → no se toca.' },
     { titulo: 'Regla 1b — Reactivar', texto: 'Igual que la Regla 1 (NIF y mail coinciden) pero el contacto está Archivado en Odoo → se genera una actualización que pone Activo = TRUE (cliente viejo que volvió a facturar). Las reglas 2, 3b y 4a también reactivan automáticamente si encuentran el contacto archivado.' },
     { titulo: 'Regla 2 — Actualizar mail', texto: 'Billing.Código existe, NIF = Código, Mail ≠ Email → se actualiza solo el mail.' },
+    { titulo: 'Regla 2b — Actualizar nombre (Consumidor Final)', texto: 'Sin billing, sin Metabase, ya existe en Odoo, y el Nombre de la cuenta en Dash cambió respecto al de Odoo → se actualiza solo el Nombre. No aplica cuando hay billing (ahí Odoo ya está validado contra ARCA y manda).' },
     { titulo: 'Regla 3a — Baja + Alta', texto: 'Billing.Código existe, NIF ≠ Código, y el NIF de Odoo NO está vacío (otra razón social / otro CUIT) → se da de baja el contacto viejo y se crea uno nuevo con los datos de Billing.' },
     { titulo: 'Regla 3b — Actualizar mismo contacto', texto: 'Billing.Código existe, NIF ≠ Código, y el NIF de Odoo SÍ está vacío (nunca tuvo uno cargado) → se actualiza el contacto existente en vez de dar de baja.' },
     { titulo: 'Regla 4a — Actualizar vía Metabase', texto: 'Billing.Código NO existe, Odoo ya existe, Metabase aprobado (Comandarina + approved) → actualiza NIF / Razón social / Situación con datos de Metabase.' },
@@ -137,8 +138,9 @@
     { titulo: 'Output 2 vs Output 3 — Tipo de Responsabilidad AFIP', texto: 'En el Output 2 (actualizaciones) la Responsabilidad AFIP refleja la situación fiscal real, mapeada de Billing/Metabase. En el Output 3 (altas nuevas) va siempre fija en "Consumidor Final", porque ARCA la actualiza sola después.' },
     { titulo: 'Formato de entrada de Odoo', texto: 'Acepta .xlsx o .csv, formato viejo (headers en español) o nuevo (técnico, con External ID y Tipo de identificación adelante). El Tipo de identificación en Odoo viaja junto con el NIF en las reglas 3b/4a para evitar el error "Longitud inválida".' },
     { titulo: 'Output 1 — Análisis completo', texto: 'Una fila por cada cuenta AR con la regla y acción aplicada. Sirve de backup/auditoría de cada corrida.' },
-    { titulo: 'Output 2 — Actualizar contactos en Odoo', texto: 'Incluye reglas 1b, 2, 3a (baja), 3b y 4a. Al importar, mapear "External ID" al campo External ID para que actualice en vez de crear.' },
-    { titulo: 'Output 3 — Alta de contactos en Odoo', texto: 'Incluye reglas 3a (alta), 4b, 5 y 6. Plantilla Comandarina, sin columna ID. Sub-casos: CUIT, DNI (con domicilio/ciudad), Sin datos (Sigd), 4b (Metabase), 3a-alta. Prioridad de mail: Billing.Email si existe, si no Admin (Dash).' },
+    { titulo: 'Output 2 — Actualizar contactos en Odoo', texto: 'Incluye reglas 1b, 2, 2b, 3a (baja), 3b y 4a. Solo columna "External ID" (sin ID de base de datos) — al importar, mapear "External ID" al campo External ID para que actualice en vez de crear. Trae columna "Grupo" (qué regla aplicó) y "Comentario" (avisos a revisar antes de importar, ninguna se pisa).' },
+    { titulo: 'Output 3 — Alta de contactos en Odoo', texto: 'Incluye reglas 3a (alta), 4b, 5 y 6. Plantilla Comandarina, sin columna ID. Sub-casos: CUIT, DNI (con domicilio/ciudad), Sin datos (Sigd), 4b (Metabase), 3a-alta. Prioridad de mail: Billing.Email si existe, si no Admin (Dash). Trae columna "Comentario" con avisos a revisar antes de importar.' },
+    { titulo: 'Comentarios de revisión (Output 2 y 3)', texto: 'Nunca se pisa ningún dato: si falta el mail de admin, el comentario dice "buscar mail admin". Si el mail tiene tildes, espacios de más, o formato inválido, se anota el detalle. Un banner arriba avisa si hay filas para revisar antes de importar.' },
     { titulo: 'Mapeo de situación fiscal (Dash/Metabase → Odoo)', texto: 'Responsable inscripto / responsable_inscripto → IVA Responsable Inscripto. Monotributo / monotributista → Responsable Monotributo. Consumidor final → Consumidor Final. Exento → IVA Sujeto Exento. (Solo aplica en Output 2, no en Output 3).' },
     { titulo: 'Pendiente', texto: 'Definir el formato de importación para Dash (Etapa 2, con el Odoo ya actualizado).' }
   ];
@@ -850,6 +852,21 @@
       return map[s] || raw;
     }
 
+    // Arma el comentario de revisión (no importar) según el estado del mail. Nunca pisa datos, solo anota.
+    function construirComentario(mail, huboIntentoAdmin){
+      const problemas = [];
+      const limpio = (mail || '').trim();
+      if(!limpio){
+        problemas.push(huboIntentoAdmin ? 'buscar mail admin' : 'mail vacío');
+        return problemas.join('; ');
+      }
+      if(mail !== limpio) problemas.push('mail con espacios extra');
+      if(/[áéíóúÁÉÍÓÚüÜñÑ]/.test(limpio)) problemas.push('mail con tildes');
+      if(/\s/.test(limpio)) problemas.push('mail con espacios internos');
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpio)) problemas.push('formato de mail inválido');
+      return problemas.join('; ');
+    }
+
     // Fila de alta para Output 3: mismos campos siempre, cambia el origen del dato segun el caso.
     function buildAltaRow(opts){
       return {
@@ -866,14 +883,15 @@
         Referencia: opts.referencia,
         Compañía: 'COMANDARINA S.R.L.',
         'Enlace a página web': opts.enlace,
-        'Grupo (no importar)': opts.grupo
+        'Grupo (no importar)': opts.grupo,
+        'Comentario (no importar)': construirComentario(opts.mail, !!opts.huboIntentoAdmin)
       };
     }
 
-    const r1_ok=[], r1b_reactivar=[], r2_mail=[], r3a_baja=[], r3a_alta_pend=[], r3b_update=[], r4a_update=[], r4b_alta=[], r5_alta=[], r6_alta_cf=[], excepciones=[];
+    const r1_ok=[], r1b_reactivar=[], r2_mail=[], r2b_nombre=[], r3a_baja=[], r3a_alta_pend=[], r3b_update=[], r4a_update=[], r4b_alta=[], r5_alta=[], r6_alta_cf=[], excepciones=[];
     const output1=[], output2=[], output3=[];
-    const OUT2_COLS = ['External ID','ID','Referencia','Nombre','NIF','Tipo de identificación','Correo electrónico','Tipo de Responsabilidad AFIP','Enlace a página web','Activo'];
-    const OUT3_COLS = ['Nombre','Tipo de compañía','Nombre de la calle','Idioma','Ciudad','País','Tipo de identificación','NIF','Tipo de Responsabilidad AFIP','Correo electrónico','Referencia','Compañía','Enlace a página web','Grupo (no importar)'];
+    const OUT2_COLS = ['External ID','Referencia','Nombre','NIF','Tipo de identificación','Correo electrónico','Tipo de Responsabilidad AFIP','Enlace a página web','Activo','Grupo (no importar)','Comentario (no importar)'];
+    const OUT3_COLS = ['Nombre','Tipo de compañía','Nombre de la calle','Idioma','Ciudad','País','Tipo de identificación','NIF','Tipo de Responsabilidad AFIP','Correo electrónico','Referencia','Compañía','Enlace a página web','Grupo (no importar)','Comentario (no importar)'];
 
     accountsAR.forEach((accRow, id) => {
       const billing = billingByAcc.get(id);
@@ -903,10 +921,11 @@
         if(!odoo){
           const tipoIdent = billing['Tipo de identificación'] || 'CUIT';
           const esDni = String(tipoIdent).trim().toUpperCase() === 'DNI';
+          const mailUsado = billing['Email'] || mailAdmin;
           const row = buildAltaRow({
             nombre: billing['Razón social'], tipoIdent, nif: billing['Código'],
             domicilio: esDni ? billing['Domicilio'] : '', ciudad: esDni ? billing['Ciudad'] : '',
-            mail: billing['Email'] || mailAdmin, referencia: id, enlace: enlaceDash,
+            mail: mailUsado, huboIntentoAdmin: !billing['Email'], referencia: id, enlace: enlaceDash,
             grupo: esDni ? 'DNI' : 'CUIT'
           });
           r5_alta.push(row); output3.push(row);
@@ -920,7 +939,7 @@
           const estabaArchivado = odoo['Activo'] === false;
           if(mailOdoo === mailDash){
             if(estabaArchivado){
-              const row = {'External ID':odoo['ExternalID']||'', ID:odoo['ID'], Referencia:id, Nombre:odoo['Nombre'], NIF:odoo['NIF'], 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':odoo['Correo electrónico'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE'};
+              const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:odoo['Nombre'], NIF:odoo['NIF'], 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':odoo['Correo electrónico'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Reactivar', 'Comentario (no importar)':construirComentario(odoo['Correo electrónico'], false)};
               r1b_reactivar.push(row); output2.push(row);
               log1('1b', 'Reactivar contacto', 'Datos coinciden con Billing pero el contacto está archivado en Odoo — desarchivar');
             } else {
@@ -928,26 +947,27 @@
               log1('1', 'Sin acción', 'Validado OK');
             }
           } else {
-            const row = {'External ID':odoo['ExternalID']||'', ID:odoo['ID'], Referencia:id, Nombre:odoo['Nombre'], NIF:odoo['NIF'], 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':billing['Email'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE'};
+            const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:odoo['Nombre'], NIF:odoo['NIF'], 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':billing['Email'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Actualizar mail', 'Comentario (no importar)':construirComentario(billing['Email'], false)};
             r2_mail.push(row); output2.push(row);
             log1('2', 'Actualizar mail', 'Mail actualizado en Odoo' + (estabaArchivado ? ' (además estaba archivado, se reactiva)' : ''));
           }
         } else if(nifOdoo){
           const enlaceOrig = odoo['Enlace a página web'] || enlaceDash;
-          const bajaRow = {'External ID':odoo['ExternalID']||'', ID:odoo['ID'], Referencia:id+'_old', Nombre:odoo['Nombre'], NIF:odoo['NIF'], 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':odoo['Correo electrónico'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':enlaceOrig+'_old', Activo:'FALSE'};
+          const bajaRow = {'External ID':odoo['ExternalID']||'', Referencia:id+'_old', Nombre:odoo['Nombre'], NIF:odoo['NIF'], 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':odoo['Correo electrónico'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':enlaceOrig+'_old', Activo:'FALSE', 'Grupo (no importar)':'Baja', 'Comentario (no importar)':''};
           const tipoIdentAlta = billing['Tipo de identificación'] || 'CUIT';
           const esDniAlta = String(tipoIdentAlta).trim().toUpperCase() === 'DNI';
+          const mailUsadoAlta = billing['Email'] || mailAdmin;
           const altaRow = buildAltaRow({
             nombre: billing['Razón social'], tipoIdent: tipoIdentAlta, nif: billing['Código'],
             domicilio: esDniAlta ? billing['Domicilio'] : '', ciudad: esDniAlta ? billing['Ciudad'] : '',
-            mail: billing['Email'] || mailAdmin, referencia: id, enlace: enlaceDash, grupo: '3a - alta'
+            mail: mailUsadoAlta, huboIntentoAdmin: !billing['Email'], referencia: id, enlace: enlaceDash, grupo: '3a - alta'
           });
           r3a_baja.push(bajaRow); output2.push(bajaRow);
           r3a_alta_pend.push(altaRow); output3.push(altaRow);
           log1('3a', 'Baja + Alta', 'NIF distinto de otra razón social');
         } else {
           const estabaArchivado = odoo['Activo'] === false;
-          const row = {'External ID':odoo['ExternalID']||'', ID:odoo['ID'], Referencia:id, Nombre:billing['Razón social'], NIF:billing['Código'], 'Tipo de identificación':billing['Tipo de identificación']||'CUIT', 'Correo electrónico':billing['Email'], 'Tipo de Responsabilidad AFIP':mapSituacion(billing['Situación ante el impuesto']), 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE'};
+          const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:billing['Razón social'], NIF:billing['Código'], 'Tipo de identificación':billing['Tipo de identificación']||'CUIT', 'Correo electrónico':billing['Email'], 'Tipo de Responsabilidad AFIP':mapSituacion(billing['Situación ante el impuesto']), 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Actualizar — NIF vacío', 'Comentario (no importar)':construirComentario(billing['Email'], false)};
           r3b_update.push(row); output2.push(row);
           log1('3b', 'Actualizar contacto', 'NIF de Odoo estaba vacío, se completa con Billing' + (estabaArchivado ? ' (además estaba archivado, se reactiva)' : ''));
         }
@@ -957,24 +977,34 @@
         if(meta){
           if(odoo){
             const estabaArchivado = odoo['Activo'] === false;
-            const row = {'External ID':odoo['ExternalID']||'', ID:odoo['ID'], Referencia:id, Nombre:meta['afip_settings_social_name'], NIF:meta['afip_settings_cuit'], 'Tipo de identificación':'CUIT', 'Correo electrónico':mailAdmin, 'Tipo de Responsabilidad AFIP':mapSituacion(meta['afip_settings_issuer_iva_condition']), 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE'};
+            const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:meta['afip_settings_social_name'], NIF:meta['afip_settings_cuit'], 'Tipo de identificación':'CUIT', 'Correo electrónico':mailAdmin, 'Tipo de Responsabilidad AFIP':mapSituacion(meta['afip_settings_issuer_iva_condition']), 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Actualizar vía Metabase', 'Comentario (no importar)':construirComentario(mailAdmin, true)};
             r4a_update.push(row); output2.push(row);
             log1('4a', 'Actualizar contacto (Metabase)', 'Sin billing, actualizado con Metabase' + (estabaArchivado ? ' (además estaba archivado, se reactiva)' : ''));
           } else {
             const row = buildAltaRow({
               nombre: meta['afip_settings_social_name'], tipoIdent: 'CUIT', nif: meta['afip_settings_cuit'],
-              mail: mailAdmin, referencia: id, enlace: enlaceDash, grupo: '4b (Metabase)'
+              mail: mailAdmin, huboIntentoAdmin: true, referencia: id, enlace: enlaceDash, grupo: '4b (Metabase)'
             });
             r4b_alta.push(row); output3.push(row);
             log1('4b', 'Crear contacto (Metabase)', 'Sin billing, alta con Metabase');
           }
         } else if(odoo){
-          r1_ok.push({referencia:id, id_odoo:odoo['ID'], razon_social:odoo['Nombre'], nota:'Consumidor Final sin datos fiscales en Dash'});
-          log1('Aprobado', 'Sin acción', 'Consumidor Final ya cargado, sin datos fiscales en Dash ni Metabase');
+          // Sin billing ni Metabase: no hay fuente fiscal para actualizar, pero el nombre de Dash SI puede
+          // haber cambiado (Odoo no esta validado contra ARCA en este caso) -> si difiere, se actualiza el nombre.
+          const nombreDash = String(accRow['Nombre'] || '').trim();
+          const nombreOdoo = String(odoo['Nombre'] || '').trim();
+          if(nombreDash && nombreDash !== nombreOdoo){
+            const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:nombreDash, NIF:odoo['NIF']||'', 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':odoo['Correo electrónico'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Actualizar nombre', 'Comentario (no importar)':construirComentario(odoo['Correo electrónico'], false)};
+            r2b_nombre.push(row); output2.push(row);
+            log1('2b', 'Actualizar nombre', 'Nombre de cuenta cambió en Dash, sin datos fiscales para validar el resto');
+          } else {
+            r1_ok.push({referencia:id, id_odoo:odoo['ID'], razon_social:odoo['Nombre'], nota:'Consumidor Final sin datos fiscales en Dash'});
+            log1('Aprobado', 'Sin acción', 'Consumidor Final ya cargado, sin datos fiscales en Dash ni Metabase');
+          }
         } else {
           const row = buildAltaRow({
             nombre: accRow['Nombre'], tipoIdent: 'Sigd', nif: '',
-            mail: mailAdmin, referencia: id, enlace: enlaceDash, grupo: 'Sin datos (Sigd)'
+            mail: mailAdmin, huboIntentoAdmin: true, referencia: id, enlace: enlaceDash, grupo: 'Sin datos (Sigd)'
           });
           r6_alta_cf.push(row); output3.push(row);
           log1('6', 'Crear contacto (Consumidor Final)', 'Sin billing ni Metabase, alta como Consumidor Final');
@@ -984,15 +1014,20 @@
 
     window.__vcBuckets = {
       output1, output2, output3,
-      r1_ok, r1b_reactivar, r2_mail, r3a_baja, r3a_alta_pend, r3b_update, r4a_update, r4b_alta, r5_alta, r6_alta_cf, excepciones
+      r1_ok, r1b_reactivar, r2_mail, r2b_nombre, r3a_baja, r3a_alta_pend, r3b_update, r4a_update, r4b_alta, r5_alta, r6_alta_cf, excepciones
     };
 
     const totalAR = accountsAR.size;
     const summary = document.getElementById('results');
     summary.style.display = 'block';
-    const cuentasActualizar = r2_mail.length + r3b_update.length + r4a_update.length;
+    const cuentasActualizar = r2_mail.length + r2b_nombre.length + r3b_update.length + r4a_update.length;
     const cuentasCrear = r4b_alta.length + r5_alta.length + r6_alta_cf.length;
+    const filasParaRevisar = output2.filter(r => r['Comentario (no importar)']).length + output3.filter(r => r['Comentario (no importar)']).length;
+    const banner = filasParaRevisar > 0
+      ? '<p class="vc-note" style="background:#fef9c3;color:#854d0e;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-weight:600;">⚠️ ' + filasParaRevisar + ' fila' + (filasParaRevisar===1?'':'s') + ' necesita' + (filasParaRevisar===1?'':'n') + ' revisión antes de importar — ver columna "Comentario (no importar)" en Output 2 / Output 3.</p>'
+      : '';
     summary.innerHTML =
+      banner +
       '<div class="vc-summary">' +
         '<div class="vc-metric" style="background:var(--naranja);"><span class="n" style="color:#fff;">' + totalAR + '</span><span class="l" style="color:#fff;">Cuentas AR (Dash)</span></div>' +
         '<div class="vc-metric"><span class="n" style="color:#15803d;">' + r1_ok.length + '</span><span class="l">OK, sin acción</span></div>' +
@@ -1004,8 +1039,8 @@
       '</div>' +
       '<p class="vc-note" style="margin:-6px 0 16px;">Verificación: ' + r1_ok.length + ' + ' + r1b_reactivar.length + ' + ' + cuentasActualizar + ' + ' + r3a_baja.length + ' + ' + cuentasCrear + ' + ' + excepciones.length + ' = ' + (r1_ok.length + r1b_reactivar.length + cuentasActualizar + r3a_baja.length + cuentasCrear + excepciones.length) + ' (debería ser igual a ' + totalAR + '). Nota: cada cuenta de "Baja + Alta" genera 2 filas de salida (una en Output 2, una en Output 3), por eso no se suma directo a esos totales. "Reactivar" también entra en el Output 2 (usa Activo=TRUE, resto de los datos sin cambios).</p>' +
       section('output1', 'Output 1 — Análisis completo (backup)', output1, 'Una fila por cada cuenta AR de Dash, con la regla y acción aplicada. Guardalo como respaldo de cada corrida.', 'paid', 'Backup') +
-      section('output2', 'Output 2 — Actualizar contactos existentes en Odoo', output2, 'Incluye reglas 1b (reactivar), 2, 3a (baja), 3b y 4a. Al importar en Odoo, mapeá la columna "External ID" al campo External ID para que actualice el contacto en vez de crear uno nuevo (columna "ID" queda solo de referencia). La columna "Tipo de identificación" viaja junto con el NIF en las reglas 3b y 4a para evitar el error de "longitud inválida" en Odoo; en el resto de las reglas repite el tipo que el contacto ya tenía. Las cuentas de la regla 3a aportan 1 fila acá (la baja) y otra fila más en el Output 3 (la alta) — por eso ' + output2.length + ' filas no equivale a ' + output2.length + ' cuentas distintas.', 'pending', 'Actualizar') +
-      section('output3', 'Output 3 — Alta de contactos nuevos en Odoo', output3, 'Incluye reglas 3a (alta), 4b, 5 y 6. Sin columna ID: Odoo los va a crear como contactos nuevos. Las ' + r3a_alta_pend.length + ' filas de la regla 3a acá son la contraparte de las bajas del Output 2 (mismo cuenta, contacto nuevo).', 'refunded', 'Alta') +
+      section('output2', 'Output 2 — Actualizar contactos existentes en Odoo', output2, 'Incluye reglas 1b (reactivar), 2, 2b (nombre), 3a (baja), 3b y 4a. Al importar en Odoo, mapeá la columna "External ID" al campo External ID para que actualice el contacto en vez de crear uno nuevo. La columna "Tipo de identificación" viaja junto con el NIF en las reglas 3b y 4a para evitar el error de "longitud inválida" en Odoo. Revisá la columna "Comentario (no importar)" antes de importar. Las cuentas de la regla 3a aportan 1 fila acá (la baja) y otra fila más en el Output 3 (la alta) — por eso ' + output2.length + ' filas no equivale a ' + output2.length + ' cuentas distintas.', 'pending', 'Actualizar') +
+      section('output3', 'Output 3 — Alta de contactos nuevos en Odoo', output3, 'Incluye reglas 3a (alta), 4b, 5 y 6. Sin columna ID: Odoo los va a crear como contactos nuevos. Revisá la columna "Comentario (no importar)" antes de importar. Las ' + r3a_alta_pend.length + ' filas de la regla 3a acá son la contraparte de las bajas del Output 2 (mismo cuenta, contacto nuevo).', 'refunded', 'Alta') +
       section('excepciones', 'Excepciones (Referencia duplicada en Odoo, etc.)', excepciones, 'Quedan fuera de los outputs 2 y 3 — requieren revisión manual.', 'cancelled', 'Excepción');
 
     log.textContent = 'Listo — ' + totalAR + ' cuentas AR procesadas.';
