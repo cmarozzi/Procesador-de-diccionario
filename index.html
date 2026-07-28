@@ -173,7 +173,7 @@
     { titulo: 'Output 1 — Análisis completo', texto: 'Una fila por cada cuenta AR con la regla y acción aplicada. Sirve de backup/auditoría de cada corrida.' },
     { titulo: 'Output 2 — Actualizar contactos en Odoo', texto: 'Incluye reglas 1b, 2, 2b, 3a (baja), 3b y 4a. Solo columna "External ID" (sin ID de base de datos) — al importar, mapear "External ID" al campo External ID para que actualice en vez de crear. Trae columna "Grupo" (qué regla aplicó) y "Comentario" (avisos a revisar antes de importar, ninguna se pisa).' },
     { titulo: 'Output 3 — Alta de contactos en Odoo', texto: 'Incluye reglas 3a (alta), 4b, 5 y 6. Plantilla Comandarina, sin columna ID. Sub-casos: CUIT, DNI (con domicilio/ciudad), Sin datos (Sigd), 4b (Metabase), 3a-alta. Prioridad de mail: Billing.Email si existe, si no Admin (Dash). Trae columna "Comentario" con avisos a revisar antes de importar.' },
-    { titulo: 'Comentarios de revisión (Output 2 y 3)', texto: 'Nunca se pisa ningún dato: si falta el mail de admin, el comentario dice "buscar mail admin". Si el mail tiene tildes, espacios de más, o formato inválido, se anota el detalle. Un banner arriba avisa si hay filas para revisar antes de importar.' },
+    { titulo: 'Revisión manual por mail (Output 2 y 3)', texto: 'Si falta el mail de admin, o el mail tiene tildes, espacios de más, o formato inválido, esa cuenta NO se incluye en el Output 2/3 — queda afuera del archivo de importación. El banner de arriba muestra el detalle completo (cuenta + qué falta) directamente, para resolverlo a mano antes de la próxima corrida.' },
     { titulo: 'Mapeo de situación fiscal (Dash/Metabase → Odoo)', texto: 'Responsable inscripto / responsable_inscripto → IVA Responsable Inscripto. Monotributo / monotributista → Responsable Monotributo. Consumidor final → Consumidor Final. Exento → IVA Sujeto Exento. (Solo aplica en Output 2, no en Output 3).' }
   ];
 
@@ -1003,9 +1003,9 @@
     }
 
     const r1_ok=[], r1b_reactivar=[], r2_mail=[], r2b_nombre=[], r3a_baja=[], r3a_alta_pend=[], r3b_update=[], r4a_update=[], r4b_alta=[], r5_alta=[], r6_alta_cf=[], excepciones=[], cuentasInternas=[];
-    const output1=[], output2=[], output3=[];
-    const OUT2_COLS = ['External ID','Referencia','Nombre','NIF','Tipo de identificación','Correo electrónico','Tipo de Responsabilidad AFIP','Enlace a página web','Activo','Grupo (no importar)','Comentario (no importar)'];
-    const OUT3_COLS = ['Nombre','Tipo de compañía','Nombre de la calle','Idioma','Ciudad','País','Tipo de identificación','NIF','Tipo de Responsabilidad AFIP','Correo electrónico','Referencia','Compañía','Enlace a página web','Grupo (no importar)','Comentario (no importar)'];
+    const output1=[]; let output2=[], output3=[];
+    const OUT2_COLS = ['External ID','Referencia','Nombre','NIF','Tipo de identificación','Correo electrónico','Tipo de Responsabilidad AFIP','Enlace a página web','Activo','Grupo (no importar)'];
+    const OUT3_COLS = ['Nombre','Tipo de compañía','Nombre de la calle','Idioma','Ciudad','País','Tipo de identificación','NIF','Tipo de Responsabilidad AFIP','Correo electrónico','Referencia','Compañía','Enlace a página web','Grupo (no importar)'];
     const DOMINIOS_INTERNOS = /@(fu\.do|deli\.com\.br)$/i;
     // Referencias (ID de Dash) que NUNCA se marcan como cuenta interna, aunque cumplan el criterio de
     // dominio + Estado comercial Activo — son casos revisados a mano y confirmados como cuentas reales.
@@ -1139,6 +1139,26 @@
       }
     });
 
+    // Las filas que necesitan revisión (mail faltante o con formato inválido) se sacan de los
+    // outputs de importación y se muestran directo en el banner de alerta, con el detalle completo.
+    const revisionesPendientes = [];
+    function extraerRevisiones(rows, origen){
+      const limpias = [];
+      rows.forEach(r => {
+        const comentario = r['Comentario (no importar)'];
+        if(comentario){
+          revisionesPendientes.push({ Origen: origen, Referencia: r['Referencia'], Nombre: r['Nombre'], Comentario: comentario });
+        } else {
+          const copia = Object.assign({}, r);
+          delete copia['Comentario (no importar)'];
+          limpias.push(copia);
+        }
+      });
+      return limpias;
+    }
+    output2 = extraerRevisiones(output2, 'Output 2');
+    output3 = extraerRevisiones(output3, 'Output 3');
+
     window.__vcBuckets = {
       output1, output2, output3,
       r1_ok, r1b_reactivar, r2_mail, r2b_nombre, r3a_baja, r3a_alta_pend, r3b_update, r4a_update, r4b_alta, r5_alta, r6_alta_cf, excepciones, cuentasInternas
@@ -1149,9 +1169,11 @@
     summary.style.display = 'block';
     const cuentasActualizar = r2_mail.length + r2b_nombre.length + r3b_update.length + r4a_update.length;
     const cuentasCrear = r4b_alta.length + r5_alta.length + r6_alta_cf.length;
-    const filasParaRevisar = output2.filter(r => r['Comentario (no importar)']).length + output3.filter(r => r['Comentario (no importar)']).length;
-    const bannerRevision = filasParaRevisar > 0
-      ? '<p class="vc-note" style="background:#fef9c3;color:#854d0e;border-radius:8px;padding:10px 14px;margin:0 0 10px;font-weight:600;">⚠️ ' + filasParaRevisar + ' fila' + (filasParaRevisar===1?'':'s') + ' necesita' + (filasParaRevisar===1?'':'n') + ' revisión antes de importar — ver columna "Comentario (no importar)" en Output 2 / Output 3.</p>'
+    const bannerRevision = revisionesPendientes.length > 0
+      ? '<div class="vc-note" style="background:#fef9c3;color:#854d0e;border-radius:8px;padding:10px 14px;margin:0 0 10px;font-weight:600;">⚠️ ' + revisionesPendientes.length + ' cuenta' + (revisionesPendientes.length===1?'':'s') + ' necesita' + (revisionesPendientes.length===1?'':'n') + ' revisión manual antes de importar — no está' + (revisionesPendientes.length===1?'':'n') + ' incluida' + (revisionesPendientes.length===1?'':'s') + ' en los outputs:' +
+          '<ul style="margin:8px 0 0;padding-left:18px;font-weight:400;">' +
+            revisionesPendientes.map(r => '<li>[' + r.Origen + '] <strong>' + (r.Nombre || r.Referencia) + '</strong> (Ref. ' + r.Referencia + '): ' + r.Comentario + '</li>').join('') +
+          '</ul></div>'
       : '';
     const bannerInternas = cuentasInternas.length > 0
       ? '<div class="vc-note" style="background:#e0e7ff;color:#3730a3;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-weight:600;">🏢 ' + cuentasInternas.length + ' cuenta' + (cuentasInternas.length===1?'':'s') + ' interna' + (cuentasInternas.length===1?'':'s') + ' detectada' + (cuentasInternas.length===1?'':'s') + ' (mail @fu.do / @deli.com.br, Estado comercial Activo) — excluida' + (cuentasInternas.length===1?'':'s') + ' del análisis, no se crea ni se modifica en Odoo. La modificación de su estado en Dash se hace aparte, fuera de esta herramienta.<ul style="margin:8px 0 0;padding-left:18px;font-weight:400;">' +
@@ -1172,8 +1194,8 @@
       '</div>' +
       '<p class="vc-note" style="margin:-6px 0 16px;">Verificación: ' + r1_ok.length + ' + ' + r1b_reactivar.length + ' + ' + cuentasActualizar + ' + ' + r3a_baja.length + ' + ' + cuentasCrear + ' + ' + excepciones.length + ' + ' + cuentasInternas.length + ' = ' + (r1_ok.length + r1b_reactivar.length + cuentasActualizar + r3a_baja.length + cuentasCrear + excepciones.length + cuentasInternas.length) + ' (debería ser igual a ' + totalAR + ', el último término son las cuentas internas excluidas). Nota: cada cuenta de "Baja + Alta" genera 2 filas de salida (una en Output 2, una en Output 3), por eso no se suma directo a esos totales. "Reactivar" también entra en el Output 2 (usa Activo=TRUE, resto de los datos sin cambios).</p>' +
       section('output1', 'Output 1 — Análisis completo (backup)', output1, 'Una fila por cada cuenta AR de Dash, con la regla y acción aplicada. Guardalo como respaldo de cada corrida.', 'paid', 'Backup') +
-      section('output2', 'Output 2 — Actualizar contactos existentes en Odoo', output2, 'Incluye reglas 1b (reactivar), 2, 2b (nombre), 3a (baja), 3b y 4a. Al importar en Odoo, mapeá la columna "External ID" al campo External ID para que actualice el contacto en vez de crear uno nuevo. La columna "Tipo de identificación" viaja junto con el NIF en las reglas 3b y 4a para evitar el error de "longitud inválida" en Odoo. Revisá la columna "Comentario (no importar)" antes de importar. Las cuentas de la regla 3a aportan 1 fila acá (la baja) y otra fila más en el Output 3 (la alta) — por eso ' + output2.length + ' filas no equivale a ' + output2.length + ' cuentas distintas.', 'pending', 'Actualizar') +
-      section('output3', 'Output 3 — Alta de contactos nuevos en Odoo', output3, 'Incluye reglas 3a (alta), 4b, 5 y 6. Sin columna ID: Odoo los va a crear como contactos nuevos. Revisá la columna "Comentario (no importar)" antes de importar. Las ' + r3a_alta_pend.length + ' filas de la regla 3a acá son la contraparte de las bajas del Output 2 (mismo cuenta, contacto nuevo).', 'refunded', 'Alta') +
+      section('output2', 'Output 2 — Actualizar contactos existentes en Odoo', output2, 'Incluye reglas 1b (reactivar), 2, 2b (nombre), 3a (baja), 3b y 4a. Al importar en Odoo, mapeá la columna "External ID" al campo External ID para que actualice el contacto en vez de crear uno nuevo. La columna "Tipo de identificación" viaja junto con el NIF en las reglas 3b y 4a para evitar el error de "longitud inválida" en Odoo. Las cuentas que necesitan revisión manual (mail faltante o inválido) NO están acá — mirá el banner de arriba. Las cuentas de la regla 3a aportan 1 fila acá (la baja) y otra fila más en el Output 3 (la alta) — por eso ' + output2.length + ' filas no equivale a ' + output2.length + ' cuentas distintas.', 'pending', 'Actualizar') +
+      section('output3', 'Output 3 — Alta de contactos nuevos en Odoo', output3, 'Incluye reglas 3a (alta), 4b, 5 y 6. Sin columna ID: Odoo los va a crear como contactos nuevos. Las cuentas que necesitan revisión manual (mail faltante o inválido) NO están acá — mirá el banner de arriba. Las ' + r3a_alta_pend.length + ' filas de la regla 3a acá son la contraparte de las bajas del Output 2 (mismo cuenta, contacto nuevo).', 'refunded', 'Alta') +
       section('excepciones', 'Excepciones (Referencia duplicada en Odoo, etc.)', excepciones, 'Quedan fuera de los outputs 2 y 3 — requieren revisión manual.', 'cancelled', 'Excepción');
 
     log.textContent = 'Listo — ' + totalAR + ' cuentas AR procesadas.';
