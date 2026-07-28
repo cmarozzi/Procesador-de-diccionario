@@ -365,11 +365,13 @@
     return idx-1;
   }
   function xmlUnescape(s){
+    // El &amp; se resuelve primero para poder manejar entidades doblemente escapadas
+    // (ej: "&amp;#209;" en vez de "&#209;", que a veces genera Excel al re-exportar).
     return s
+      .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
       .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
-      .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
-      .replace(/&amp;/g, '&');
+      .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)));
   }
   function parseSharedStrings(xmlText){
     if(!xmlText) return [];
@@ -526,6 +528,11 @@
     for(const k in obj){ if(k.toLowerCase() === target) return obj[k]; }
     return undefined;
   }
+  // Varios campos de Odoo (Tipo de Identificación, Provincia) vienen con sufijo " (AR)" cuando
+  // el campo es un many2one con país asociado (ej: "CUIT (AR)", "Río Negro (AR)"). Se limpia acá.
+  function limpiarSufijoAR(texto){
+    return String(texto || '').replace(/\s*\(AR\)\s*$/i, '').trim();
+  }
   function normalizeOdooRows(rows){
     if(!rows.length) return rows;
     const keys = Object.keys(rows[0]);
@@ -535,7 +542,7 @@
     // segun mayusculas del export), y a veces con sufijo " (AR)" (ej: "CUIT (AR)") que se limpia acá.
     function tipoIdent(r){
       const raw = findKeyCI(r, 'l10n_latam_identification_type_id') || findKeyCI(r, 'Tipo de identificación') || findKeyCI(r, 'TipoIdentificacion') || '';
-      return String(raw).replace(/\s*\(AR\)\s*$/i, '').trim();
+      return limpiarSufijoAR(raw);
     }
     if(!esFormatoTecnico){
       // Formato viejo (headers en español). Si vino de CSV con "Estado", ya se mapeó Activo en readOdooCsv.
@@ -1202,7 +1209,7 @@
         'Código': nif,
         'Razón social': odoo['Nombre'] || '',
         'Ciudad': findKeyCI(odoo, 'Ciudad') || '',
-        'Estado': findKeyCI(odoo, 'Provincia') || '',
+        'Estado': limpiarSufijoAR(findKeyCI(odoo, 'Provincia')) || '',
         'Domicilio': findKeyCI(odoo, 'Calle') || '',
         'Situación ante el impuesto': mapSituacionInversa(odoo['Tipo de Responsabilidad AFIP']),
         'Email': odoo['Correo electrónico'] || '',
