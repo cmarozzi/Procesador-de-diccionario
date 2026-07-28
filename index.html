@@ -157,6 +157,7 @@
 (function(){
   const REGLAS_ETAPA1 = [
     { titulo: 'Prioridad de fuente', texto: 'Si Billing.Código existe (CUIT/DNI real), Billing manda. Si Billing.Código NO existe (Sin datos/0), se consulta Metabase (Comandarina + approved) como respaldo.' },
+    { titulo: 'Cuentas internas (Fudo/Deli) — exclusión previa', texto: 'Si el Estado comercial de la cuenta en Dash es "Activo" Y el mail del admin con más logins termina en @fu.do o @deli.com.br, la cuenta se excluye por completo del análisis (no entra a ninguna regla, no se crea ni se modifica en Odoo). Se muestra como alerta aparte con el nombre y el link a Dash. La modificación de su estado en Dash se hace manualmente, fuera de esta herramienta. Excepción confirmada que NO se marca como interna: Referencia 154948 (tienda_cholita), cuenta real revisada a mano.' },
     { titulo: 'Regla 1 — OK, sin acción', texto: 'Billing.Código existe, NIF = Código, Mail = Email, y el contacto está Activo en Odoo. Incluye el caso "Aprobado": sin billing, sin Metabase, ya existe en Odoo como Consumidor Final → no se toca.' },
     { titulo: 'Regla 1b — Reactivar', texto: 'Igual que la Regla 1 (NIF y mail coinciden) pero el contacto está Archivado en Odoo → se genera una actualización que pone Activo = TRUE (cliente viejo que volvió a facturar). Las reglas 2, 3b y 4a también reactivan automáticamente si encuentran el contacto archivado.' },
     { titulo: 'Regla 2 — Actualizar mail', texto: 'Billing.Código existe, NIF = Código, Mail ≠ Email → se actualiza solo el mail.' },
@@ -179,6 +180,7 @@
   const REGLAS_ETAPA2 = [
     { titulo: 'Condición', texto: 'La Referencia existe en Odoo, Odoo.NIF (Código) tiene valor, y Billing.Código está vacío para esa cuenta en Dash → se arma la fila de import para Dash. No depende de qué regla de la Etapa 1 la generó (Metabase, carga manual, etc.), solo del estado final en Odoo vs Dash.' },
     { titulo: 'Contactos excluidos', texto: 'Se ignoran los contactos Archivados en Odoo y las Referencias con sufijo "_old" (bajas de una corrida anterior de la Etapa 1) — no participan del cruce. Este filtro ya está aplicado siempre, aunque el número total resultante sea grande: representa el acumulado histórico de todas las correcciones hechas en Odoo que Dash todavía no tiene, no solo las de la última corrida.' },
+    { titulo: 'Cuentas internas (Fudo/Deli) — limitación', texto: 'La Etapa 2 no vuelve a chequear el Estado comercial ni el mail de admin (no carga esos archivos acá). Si una cuenta interna llegó a tener NIF cargado en Odoo antes de que existiera este chequeo, podría aparecer en el resultado — revisar manualmente si aparece algo sospechoso.' },
     { titulo: 'Mapeo de campos (Odoo → Dash)', texto: 'ID = Referencia. Tipo de identificación = Odoo.Tipo de Identificación (ya sin el sufijo " (AR)"). Código = Odoo.NIF. Razón social = Odoo.Nombre. Ciudad = Odoo.Ciudad. Estado = Odoo.Provincia. Domicilio = Odoo.Calle. Código postal = Odoo.C.P. Email = Odoo.Correo electrónico.' },
     { titulo: 'Mapeo de situación fiscal (Odoo → Dash)', texto: 'IVA Responsable Inscripto → Responsable inscripto. Responsable Monotributo → Monotributo. Consumidor Final → Consumidor final. IVA Sujeto Exento → Exento. (Es el mapeo inverso al de la Etapa 1).' },
     { titulo: 'Todos los campos son obligatorios', texto: 'Dash exige los 9 campos del template (ID, Tipo de identificación, Código, Razón social, Ciudad, Estado, Domicilio, Situación ante el impuesto, Email, Código postal). Si a una cuenta le falta alguno, no entra al archivo de import: va al archivo de revisión.' },
@@ -1000,10 +1002,14 @@
       };
     }
 
-    const r1_ok=[], r1b_reactivar=[], r2_mail=[], r2b_nombre=[], r3a_baja=[], r3a_alta_pend=[], r3b_update=[], r4a_update=[], r4b_alta=[], r5_alta=[], r6_alta_cf=[], excepciones=[];
+    const r1_ok=[], r1b_reactivar=[], r2_mail=[], r2b_nombre=[], r3a_baja=[], r3a_alta_pend=[], r3b_update=[], r4a_update=[], r4b_alta=[], r5_alta=[], r6_alta_cf=[], excepciones=[], cuentasInternas=[];
     const output1=[], output2=[], output3=[];
     const OUT2_COLS = ['External ID','Referencia','Nombre','NIF','Tipo de identificación','Correo electrónico','Tipo de Responsabilidad AFIP','Enlace a página web','Activo','Grupo (no importar)','Comentario (no importar)'];
     const OUT3_COLS = ['Nombre','Tipo de compañía','Nombre de la calle','Idioma','Ciudad','País','Tipo de identificación','NIF','Tipo de Responsabilidad AFIP','Correo electrónico','Referencia','Compañía','Enlace a página web','Grupo (no importar)','Comentario (no importar)'];
+    const DOMINIOS_INTERNOS = /@(fu\.do|deli\.com\.br)$/i;
+    // Referencias (ID de Dash) que NUNCA se marcan como cuenta interna, aunque cumplan el criterio de
+    // dominio + Estado comercial Activo — son casos revisados a mano y confirmados como cuentas reales.
+    const EXCEPCIONES_CUENTA_INTERNA = new Set(['154948']); // tienda_cholita — confirmada como cuenta activa real
 
     accountsAR.forEach((accRow, id) => {
       const billing = billingByAcc.get(id);
@@ -1012,6 +1018,15 @@
       const billingRow = billing || {};
       const admin = adminBest.get(id);
       const mailAdmin = admin ? admin['Email'] : '';
+
+      // Cuenta interna (equipo Fudo/Deli usando su propia cuenta comercial activa) — se excluye
+      // por completo del análisis, no se crea ni se actualiza en ningún lado.
+      const esComercialActiva = String(accRow['Estado comercial']||'').trim().toLowerCase() === 'activo';
+      if(esComercialActiva && DOMINIOS_INTERNOS.test(String(mailAdmin||'').trim()) && !EXCEPCIONES_CUENTA_INTERNA.has(id)){
+        cuentasInternas.push({ referencia:id, nombre:accRow['Nombre'], mail_admin:mailAdmin, link:enlaceDash });
+        return;
+      }
+
       const log1 = (regla, accion, detalle) => output1.push({
         Referencia:id, Nombre:accRow['Nombre'],
         CUIT_Billing: billingRow['Código'] || '', RazonSocial_Billing: billingRow['Razón social'] || '',
@@ -1126,7 +1141,7 @@
 
     window.__vcBuckets = {
       output1, output2, output3,
-      r1_ok, r1b_reactivar, r2_mail, r2b_nombre, r3a_baja, r3a_alta_pend, r3b_update, r4a_update, r4b_alta, r5_alta, r6_alta_cf, excepciones
+      r1_ok, r1b_reactivar, r2_mail, r2b_nombre, r3a_baja, r3a_alta_pend, r3b_update, r4a_update, r4b_alta, r5_alta, r6_alta_cf, excepciones, cuentasInternas
     };
 
     const totalAR = accountsAR.size;
@@ -1135,9 +1150,15 @@
     const cuentasActualizar = r2_mail.length + r2b_nombre.length + r3b_update.length + r4a_update.length;
     const cuentasCrear = r4b_alta.length + r5_alta.length + r6_alta_cf.length;
     const filasParaRevisar = output2.filter(r => r['Comentario (no importar)']).length + output3.filter(r => r['Comentario (no importar)']).length;
-    const banner = filasParaRevisar > 0
-      ? '<p class="vc-note" style="background:#fef9c3;color:#854d0e;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-weight:600;">⚠️ ' + filasParaRevisar + ' fila' + (filasParaRevisar===1?'':'s') + ' necesita' + (filasParaRevisar===1?'':'n') + ' revisión antes de importar — ver columna "Comentario (no importar)" en Output 2 / Output 3.</p>'
+    const bannerRevision = filasParaRevisar > 0
+      ? '<p class="vc-note" style="background:#fef9c3;color:#854d0e;border-radius:8px;padding:10px 14px;margin:0 0 10px;font-weight:600;">⚠️ ' + filasParaRevisar + ' fila' + (filasParaRevisar===1?'':'s') + ' necesita' + (filasParaRevisar===1?'':'n') + ' revisión antes de importar — ver columna "Comentario (no importar)" en Output 2 / Output 3.</p>'
       : '';
+    const bannerInternas = cuentasInternas.length > 0
+      ? '<div class="vc-note" style="background:#e0e7ff;color:#3730a3;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-weight:600;">🏢 ' + cuentasInternas.length + ' cuenta' + (cuentasInternas.length===1?'':'s') + ' interna' + (cuentasInternas.length===1?'':'s') + ' detectada' + (cuentasInternas.length===1?'':'s') + ' (mail @fu.do / @deli.com.br, Estado comercial Activo) — excluida' + (cuentasInternas.length===1?'':'s') + ' del análisis, no se crea ni se modifica en Odoo. La modificación de su estado en Dash se hace aparte, fuera de esta herramienta.<ul style="margin:8px 0 0;padding-left:18px;font-weight:400;">' +
+          cuentasInternas.map(c => '<li>Cuenta interna detectada: <strong>' + (c.nombre||c.referencia) + '</strong> — <a href="' + c.link + '" target="_blank" style="color:#3730a3;">' + c.link + '</a></li>').join('') +
+        '</ul></div>'
+      : '';
+    const banner = bannerRevision + bannerInternas;
     summary.innerHTML =
       banner +
       '<div class="vc-summary">' +
@@ -1149,7 +1170,7 @@
         '<div class="vc-metric"><span class="n" style="color:#7e22ce;">' + cuentasCrear + '</span><span class="l">A crear (contacto nuevo)</span></div>' +
         '<div class="vc-metric"><span class="n" style="color:#991b1b;">' + excepciones.length + '</span><span class="l">Excepciones</span></div>' +
       '</div>' +
-      '<p class="vc-note" style="margin:-6px 0 16px;">Verificación: ' + r1_ok.length + ' + ' + r1b_reactivar.length + ' + ' + cuentasActualizar + ' + ' + r3a_baja.length + ' + ' + cuentasCrear + ' + ' + excepciones.length + ' = ' + (r1_ok.length + r1b_reactivar.length + cuentasActualizar + r3a_baja.length + cuentasCrear + excepciones.length) + ' (debería ser igual a ' + totalAR + '). Nota: cada cuenta de "Baja + Alta" genera 2 filas de salida (una en Output 2, una en Output 3), por eso no se suma directo a esos totales. "Reactivar" también entra en el Output 2 (usa Activo=TRUE, resto de los datos sin cambios).</p>' +
+      '<p class="vc-note" style="margin:-6px 0 16px;">Verificación: ' + r1_ok.length + ' + ' + r1b_reactivar.length + ' + ' + cuentasActualizar + ' + ' + r3a_baja.length + ' + ' + cuentasCrear + ' + ' + excepciones.length + ' + ' + cuentasInternas.length + ' = ' + (r1_ok.length + r1b_reactivar.length + cuentasActualizar + r3a_baja.length + cuentasCrear + excepciones.length + cuentasInternas.length) + ' (debería ser igual a ' + totalAR + ', el último término son las cuentas internas excluidas). Nota: cada cuenta de "Baja + Alta" genera 2 filas de salida (una en Output 2, una en Output 3), por eso no se suma directo a esos totales. "Reactivar" también entra en el Output 2 (usa Activo=TRUE, resto de los datos sin cambios).</p>' +
       section('output1', 'Output 1 — Análisis completo (backup)', output1, 'Una fila por cada cuenta AR de Dash, con la regla y acción aplicada. Guardalo como respaldo de cada corrida.', 'paid', 'Backup') +
       section('output2', 'Output 2 — Actualizar contactos existentes en Odoo', output2, 'Incluye reglas 1b (reactivar), 2, 2b (nombre), 3a (baja), 3b y 4a. Al importar en Odoo, mapeá la columna "External ID" al campo External ID para que actualice el contacto en vez de crear uno nuevo. La columna "Tipo de identificación" viaja junto con el NIF en las reglas 3b y 4a para evitar el error de "longitud inválida" en Odoo. Revisá la columna "Comentario (no importar)" antes de importar. Las cuentas de la regla 3a aportan 1 fila acá (la baja) y otra fila más en el Output 3 (la alta) — por eso ' + output2.length + ' filas no equivale a ' + output2.length + ' cuentas distintas.', 'pending', 'Actualizar') +
       section('output3', 'Output 3 — Alta de contactos nuevos en Odoo', output3, 'Incluye reglas 3a (alta), 4b, 5 y 6. Sin columna ID: Odoo los va a crear como contactos nuevos. Revisá la columna "Comentario (no importar)" antes de importar. Las ' + r3a_alta_pend.length + ' filas de la regla 3a acá son la contraparte de las bajas del Output 2 (mismo cuenta, contacto nuevo).', 'refunded', 'Alta') +
