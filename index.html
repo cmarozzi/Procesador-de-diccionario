@@ -1640,15 +1640,38 @@ function calcularConciliacion() {
   var sumExtracto = extractoRows.reduce(function(s,r){ return s+r.monto+r.comis; }, 0);
   var saldoTeorico2 = si + sumExtracto;
 
-  // Paid online NO liberado = cuya fecha de liberacion es MAYOR a fecha hasta del periodo
-  // Estos ya estan en Odoo pero MP aun no los libero → hay que restarlos
-  var sumPONoLiberado = allRows.filter(function(r){
-    if(r.concept !== 'paid_online' || !r.fechaLib) return false;
-    var dLib = parseFechaLocal(r.fechaLib);
-    return hastaD && dLib > hastaD;
-  }).reduce(function(s,r){ return s+r.monto+r.comis; }, 0);
+  // Determine cutoff day by country (MEX=12, ARG/CHL=10)
+  // Use first extracto row to detect country
+  var detectedCountry = allRows.length > 0 ? allRows[0].country : 'MEX';
+  var cutoffDays = detectedCountry === 'MEX' ? 12 : 10;
+  var hastaDay = hastaD ? hastaD.getDate() : 0;
 
-  var teorico = saldoTeorico2 - sumPONoLiberado;
+  var ajustePO = 0;
+  var ajusteLabel = '';
+
+  if(hastaDay <= cutoffDays) {
+    // Caso 1: antes del corte → restar paid online no liberado (fechaLib > hasta)
+    ajustePO = allRows.filter(function(r){
+      if(r.concept !== 'paid_online' || !r.fechaLib) return false;
+      var dLib = parseFechaLocal(r.fechaLib);
+      return hastaD && dLib > hastaD;
+    }).reduce(function(s,r){ return s+r.monto+r.comis; }, 0);
+    ajusteLabel = '- PO no liberado';
+    ajustePO = -ajustePO; // negative adjustment
+  } else {
+    // Caso 2: despues del corte → sumar paid online liberado entre dia (cutoff+1) y hasta
+    ajustePO = allRows.filter(function(r){
+      if(r.concept !== 'paid_online' || !r.fechaLib) return false;
+      var dLib = parseFechaLocal(r.fechaLib);
+      // liberado despues del corte del mes Y dentro del periodo
+      var cutoffDate = new Date(hastaD.getFullYear(), hastaD.getMonth(), cutoffDays);
+      return dLib > cutoffDate && dLib <= hastaD;
+    }).reduce(function(s,r){ return s+r.monto+r.comis; }, 0);
+    ajusteLabel = '+ PO liberado';
+    // positive adjustment
+  }
+
+  var teorico = saldoTeorico2 + ajustePO;
   var diff    = libData.saldoFinal ? teorico - libData.saldoFinal : null;
   var ok      = diff !== null && Math.abs(diff) < 0.02;
   var okC     = ok ? 'var(--green)' : 'var(--red)';
@@ -1666,8 +1689,8 @@ function calcularConciliacion() {
         '<div style="font-size:18px;font-weight:500;font-family:var(--mono)">' + fmtN(sumExtracto) + '</div>' +
       '</div>' +
       '<div style="background:var(--bg2);border-radius:8px;padding:12px 14px">' +
-        '<div style="font-size:10px;color:var(--text2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">- Paid online no liberado</div>' +
-        '<div style="font-size:18px;font-weight:500;font-family:var(--mono);color:var(--red)">' + fmtN(sumPONoLiberado) + '</div>' +
+        '<div style="font-size:10px;color:var(--text2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">' + ajusteLabel + '</div>' +
+        '<div style="font-size:18px;font-weight:500;font-family:var(--mono);color:' + (ajusteLabel.includes('-')?'var(--red)':'var(--green)') + '">' + fmtN(Math.abs(ajustePO)) + '</div>' +
       '</div>' +
     '</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
@@ -1825,24 +1848,42 @@ function exportExcel(){
       return s + (parseFloat(r['VALOR DE LA COMPRA'])||0) + (parseFloat(r['COMISIONES + IVA'])||0);
     }, 0);
     var saldoTeorico = saldoInicial + sumExtracto;
-    // Paid online NO liberado = fecha liberacion > fecha hasta del periodo
-    var sumPONoLib = allRows.filter(function(r){
-      if(r.concept !== 'paid_online' || !r.fechaLib) return false;
-      var dLib = parseFechaLocal(r.fechaLib);
-      return hastaD && dLib > hastaD;
-    }).reduce(function(s,r){ return s + r.monto + r.comis; }, 0);
-    var saldoTeoricoCorregido = saldoTeorico - sumPONoLib;
+    // Determine cutoff by country
+    var exportCountry = allRows.length > 0 ? allRows[0].country : 'MEX';
+    var exportCutoff = exportCountry === 'MEX' ? 12 : 10;
+    var exportHastaDay = hastaD ? hastaD.getDate() : 0;
+    var exportAjustePO = 0;
+    var exportAjusteLabel = '';
+
+    if(exportHastaDay <= exportCutoff) {
+      exportAjustePO = -allRows.filter(function(r){
+        if(r.concept !== 'paid_online' || !r.fechaLib) return false;
+        var dLib = parseFechaLocal(r.fechaLib);
+        return hastaD && dLib > hastaD;
+      }).reduce(function(s,r){ return s+r.monto+r.comis; }, 0);
+      exportAjusteLabel = 'Paid online no liberado (-)';
+    } else {
+      exportAjustePO = allRows.filter(function(r){
+        if(r.concept !== 'paid_online' || !r.fechaLib) return false;
+        var dLib = parseFechaLocal(r.fechaLib);
+        var cutoffDate = new Date(hastaD.getFullYear(), hastaD.getMonth(), exportCutoff);
+        return dLib > cutoffDate && dLib <= hastaD;
+      }).reduce(function(s,r){ return s+r.monto+r.comis; }, 0);
+      exportAjusteLabel = 'Paid online liberado (+)';
+    }
+
+    var saldoTeoricoCorregido = saldoTeorico + exportAjustePO;
     var saldoFinalMP = libData ? libData.saldoFinal : '';
     var diff = saldoFinalMP !== '' ? saldoTeoricoCorregido - saldoFinalMP : '';
     var calcRows = [
-      {'Concepto':'Saldo Inicial Odoo',              'Importe': saldoInicial},
-      {'Concepto':'Movimiento "Extractos"',          'Importe': sumExtracto},
-      {'Concepto':'Saldo final teorico',             'Importe': saldoTeorico},
-      {'Concepto':'Paid online no liberado (-)',      'Importe': sumPONoLib},
-      {'Concepto':'Saldo final teorico corregido',   'Importe': saldoTeoricoCorregido},
+      {'Concepto':'Saldo Inicial Odoo',            'Importe': saldoInicial},
+      {'Concepto':'Movimiento "Extractos"',        'Importe': sumExtracto},
+      {'Concepto':'Saldo final teorico',           'Importe': saldoTeorico},
+      {'Concepto': exportAjusteLabel,              'Importe': exportAjustePO},
+      {'Concepto':'Saldo final teorico corregido', 'Importe': saldoTeoricoCorregido},
       {},
-      {'Concepto':'Saldo final MP (liberaciones)',   'Importe': saldoFinalMP},
-      {'Concepto':'Diferencia',                      'Importe': diff},
+      {'Concepto':'Saldo final MP (liberaciones)', 'Importe': saldoFinalMP},
+      {'Concepto':'Diferencia',                    'Importe': diff},
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(calcRows), 'Calculo de saldos');
 
