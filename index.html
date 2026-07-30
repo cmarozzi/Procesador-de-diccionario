@@ -81,44 +81,63 @@
 
 <div id="vc-app">
   <div class="vc-hero">
-    <span class="vc-eyebrow">Comandarina</span>
+    <span class="vc-eyebrow">Fudo ↔ Odoo</span>
     <p class="vc-h1">Procesador de diccionario</p>
-    <p class="vc-sub">Subí los reportes, procesá, y descargá los archivos listos para cada regla. Los archivos de datos no se guardan en ningún servidor.</p>
   </div>
 
   <div class="vc-tabs">
     <button class="vc-tab active" id="tab-etapa1" onclick="vcSetEtapa(1)">Etapa 1 · Odoo</button>
     <button class="vc-tab" id="tab-etapa2" onclick="vcSetEtapa(2)">Etapa 2 · Dash</button>
+    <button class="vc-tab" id="tab-etapa3" onclick="vcSetEtapa(3)">Próximamente</button>
   </div>
 
   <div id="etapa1-panel">
-    <div class="vc-grid">
-      <div class="vc-card">
-        <label>1. Odoo (Contacto res_partner) — .xlsx o .csv, con External ID y Tipo de identificación</label>
-        <input type="file" id="f-odoo" accept=".xlsx,.csv" />
-        <div class="vc-status pending" id="s-odoo">Sin cargar</div>
-      </div>
-      <div class="vc-card">
-        <label>2. Dash — Accounts + Billing (.zip)</label>
-        <input type="file" id="f-dashzip" accept=".zip" />
-        <div class="vc-status pending" id="s-dashzip">Sin cargar</div>
-      </div>
-      <div class="vc-card">
-        <label>3. Metabase AFIP/ARCA (xlsx)</label>
-        <input type="file" id="f-metabase" accept=".xlsx" />
-        <div class="vc-status pending" id="s-metabase">Sin cargar</div>
-      </div>
-      <div class="vc-card">
-        <label>4. Admin emails (csv)</label>
-        <input type="file" id="f-admin" accept=".csv" />
-        <div class="vc-status pending" id="s-admin">Sin cargar</div>
-      </div>
+    <div class="vc-card" style="max-width:340px; margin-bottom:16px;">
+      <label>Compañía</label>
+      <select id="sel-compania" onchange="vcSetCompania(this.value)" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; font-family:inherit; font-size:13px; color:var(--texto); background:#fff;">
+        <option value="comandarina_srl">Comandarina S.R.L. (Argentina)</option>
+        <option value="anser_indicus">Anser Indicus SpA (Chile)</option>
+        <option value="comandarina_mx">Comandarina SA de CV (México)</option>
+        <option value="fudo_group">Fudo Group LLC</option>
+      </select>
     </div>
 
-    <button class="vc-btn" id="btn-process" disabled>Procesar archivos</button>
-    <span class="vc-log" id="proc-log"></span>
+    <div id="etapa1-comandarina_srl">
+      <div class="vc-grid">
+        <div class="vc-card">
+          <label>1. Odoo (Contacto res_partner) — .xlsx o .csv, con External ID y Tipo de identificación</label>
+          <input type="file" id="f-odoo" accept=".xlsx,.csv" />
+          <div class="vc-status pending" id="s-odoo">Sin cargar</div>
+        </div>
+        <div class="vc-card">
+          <label>2. Dash — Accounts + Billing (.zip)</label>
+          <input type="file" id="f-dashzip" accept=".zip" />
+          <div class="vc-status pending" id="s-dashzip">Sin cargar</div>
+        </div>
+        <div class="vc-card">
+          <label>3. Metabase AFIP/ARCA (xlsx)</label>
+          <input type="file" id="f-metabase" accept=".xlsx" />
+          <div class="vc-status pending" id="s-metabase">Sin cargar</div>
+        </div>
+        <div class="vc-card">
+          <label>4. Admin emails (csv)</label>
+          <input type="file" id="f-admin" accept=".csv" />
+          <div class="vc-status pending" id="s-admin">Sin cargar</div>
+        </div>
+      </div>
 
-    <div id="results" style="margin-top:24px; display:none;"></div>
+      <button class="vc-btn" id="btn-process" disabled>Procesar archivos</button>
+      <span class="vc-log" id="proc-log"></span>
+
+      <div id="results" style="margin-top:24px; display:none;"></div>
+    </div>
+
+    <div id="etapa1-proximamente" style="display:none;">
+      <div class="vc-card" style="text-align:center; padding:36px 20px; color:var(--muted);">
+        <p style="margin:0; font-size:14px; font-weight:600;">🚧 Próximamente</p>
+        <p style="margin:6px 0 0; font-size:12.5px;">Todavía no está armado el procesamiento para esta compañía. Pedilo cuando lo necesites y lo sumamos.</p>
+      </div>
+    </div>
   </div>
 
   <div id="etapa2-panel" style="display:none;">
@@ -141,7 +160,17 @@
     <div id="results-2" style="margin-top:24px; display:none;"></div>
   </div>
 
-  <div class="vc-section" style="margin-top:24px;">
+  <div id="etapa3-panel" style="display:none;">
+    <p class="vc-note" style="margin-top:0;">
+      Ideas y pedidos que fueron surgiendo pero todavía no se programaron — se editan directo en el
+      <a href="https://docs.google.com/spreadsheets/d/1e6qAnhdD1PQefr--q0vfg-6tp1dechYXiNKY0lldV8M/edit?gid=0#gid=0" target="_blank" style="color:var(--navy);font-weight:700;">Google Sheet "Próximamente"</a>
+      (agregar, editar o borrar filas ahí, sin tocar código) — <button class="vc-btn ghost" onclick="cargarProximamente()" style="padding:4px 12px;">Actualizar</button>
+    </p>
+    <div id="proximamente-status" class="vc-log" style="margin-left:0;"></div>
+    <div id="proximamente-cards"></div>
+  </div>
+
+  <div class="vc-section" style="margin-top:24px;" id="sec-reglas-wrap">
     <div class="vc-section-head" onclick="vcToggle('sec-reglas')">
       <h3>Reglas activas</h3>
       <span class="vc-btn ghost">Ver</span>
@@ -186,6 +215,9 @@
     { titulo: 'Todos los campos son obligatorios', texto: 'Dash exige los 9 campos del template (ID, Tipo de identificación, Código, Razón social, Ciudad, Estado, Domicilio, Situación ante el impuesto, Email, Código postal). Si a una cuenta le falta alguno, no entra al archivo de import: va al archivo de revisión.' },
     { titulo: 'Dos archivos de salida', texto: 'Import a Dash: filas 100% completas, listas para subir (CSV separado por comas). Revisar antes de importar: filas con algún dato faltante, con cada campo vacío marcado puntualmente (ej. "FALTA CIUDAD") para completar a mano.' }
   ];
+
+  // "Próximamente" ya no es una lista fija en el código: se carga en vivo desde el Google Sheet
+  // (ver cargarProximamente() más abajo), así se puede editar sin tocar el archivo.
 
   // --- Descompresor DEFLATE propio (reemplaza pako), sin dependencias externas ---
   function inflateRaw(input){
@@ -1307,13 +1339,55 @@
     ).join('');
   }
 
+  const SHEET_PROXIMAMENTE_URL = 'https://docs.google.com/spreadsheets/d/1e6qAnhdD1PQefr--q0vfg-6tp1dechYXiNKY0lldV8M/gviz/tq?tqx=out:csv&gid=0';
+  let proximamenteCargado = false;
+
+  window.cargarProximamente = async function(){
+    const status = document.getElementById('proximamente-status');
+    const cont = document.getElementById('proximamente-cards');
+    status.textContent = 'Cargando desde Google Sheets...';
+    try{
+      const resp = await fetch(SHEET_PROXIMAMENTE_URL);
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      const text = await resp.text();
+      const filas = parseCsvRows(text, ',');
+      if(!filas.length){
+        cont.innerHTML = '<p class="vc-note">El Sheet no tiene filas todavía.</p>';
+      } else {
+        cont.innerHTML = filas.map(f => {
+          const titulo = f['Título'] || f['Titulo'] || '(sin título)';
+          const concepto = f['Concepto'] || '';
+          const importante = f['Importante'] || '';
+          return '<div class="vc-rule-card"><h4>' + titulo + '</h4><p>' + concepto + '</p>' +
+            (importante ? '<p style="margin-top:6px;color:var(--naranja);font-weight:600;">⚠ ' + importante + '</p>' : '') +
+            '</div>';
+        }).join('');
+      }
+      status.textContent = '';
+      proximamenteCargado = true;
+    } catch(err){
+      status.textContent = '';
+      cont.innerHTML = '<p class="vc-note" style="background:#fee2e2;color:#991b1b;border-radius:8px;padding:10px 14px;">No se pudo cargar el Sheet (' + err.message + '). ' +
+        'Si el error es de CORS, hace falta publicarlo: en el Sheet, andá a <strong>Archivo → Compartir → Publicar en la web</strong> (es distinto de "Compartir" común), publicá la hoja como CSV, y avisá para actualizar el link acá.</p>';
+    }
+  };
+
+  window.vcSetCompania = function(valor){
+    document.getElementById('etapa1-comandarina_srl').style.display = valor === 'comandarina_srl' ? '' : 'none';
+    document.getElementById('etapa1-proximamente').style.display = valor === 'comandarina_srl' ? 'none' : '';
+  };
+
   window.vcSetEtapa = function(n){
     etapaActiva = n;
     document.getElementById('tab-etapa1').classList.toggle('active', n === 1);
     document.getElementById('tab-etapa2').classList.toggle('active', n === 2);
+    document.getElementById('tab-etapa3').classList.toggle('active', n === 3);
     document.getElementById('etapa1-panel').style.display = n === 1 ? '' : 'none';
     document.getElementById('etapa2-panel').style.display = n === 2 ? '' : 'none';
-    renderReglas();
+    document.getElementById('etapa3-panel').style.display = n === 3 ? '' : 'none';
+    document.getElementById('sec-reglas-wrap').style.display = n === 3 ? 'none' : '';
+    if(n !== 3) renderReglas();
+    else if(!proximamenteCargado) cargarProximamente();
   };
 
   renderReglas();
