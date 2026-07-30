@@ -3,1395 +3,2533 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Procesador de diccionario — Comandarina</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet">
+<title>Procesador de extractos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <style>
-  body { margin: 0; background: #E1E1F5; }
-  :root {
-    --naranja: #FF5023;
-    --navy: #3938A0;
-    --fondo: #E1E1F5;
-    --texto: #3B3B3B;
-    --muted: #9ca3af;
-    --border: rgba(57,56,160,0.12);
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --orange:#FF5023;--orange-bg:rgba(255,80,35,.07);--orange-bd:rgba(255,80,35,.3);
+  --navy:#3938A0;--navy-bg:rgba(57,56,160,.08);
+  --purple:#5F5FC4;--purple-bg:rgba(95,95,196,.08);
+  --green:#00a650;--green-bg:rgba(0,166,80,.08);--green-bd:rgba(0,166,80,.3);
+  --red:#e24b4a;--red-bg:rgba(226,75,74,.08);
+  --amber:#BA7517;--amber-bg:rgba(186,117,23,.08);
+  --font:'Barlow',sans-serif;--mono:'DM Mono',monospace;
+  --text:#3B3B3B;--text2:#6B6B6B;--text3:#9C9A92;
+  --bg:#ffffff;--bg2:#F5F4F0;--bg3:#EEEDEA;
+  --border:rgba(0,0,0,.07);--border2:rgba(0,0,0,.13);
+  --r:10px;--shadow:0 2px 16px rgba(0,0,0,.06);
+}
+body{font-family:var(--font);background:var(--bg2);color:var(--text);min-height:100vh;}
+
+.topbar{background:var(--orange);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(255,80,35,.25);}
+.topbar-left{display:flex;align-items:center;gap:10px;}
+.logo{width:30px;height:30px;background:rgba(255,255,255,.2);border-radius:7px;display:flex;align-items:center;justify-content:center;}
+.logo svg{width:18px;height:18px;fill:white;}
+.topbar h1{font-size:14px;font-weight:600;color:white;letter-spacing:.01em;}
+.topbar-right{display:flex;align-items:center;gap:6px;}
+.tc-pill{font-size:11px;font-family:var(--mono);padding:3px 9px;border-radius:5px;background:rgba(0,0,0,.15);color:rgba(255,255,255,.9);}
+.tc-pill span{color:white;font-weight:600;}
+.rules-badge{font-size:11px;font-family:var(--mono);padding:3px 9px;border-radius:5px;background:var(--navy);color:white;}
+
+.main{max-width:1100px;margin:0 auto;padding:2rem 1.5rem;}
+
+.steps{display:flex;align-items:center;margin-bottom:1.5rem;}
+.step-dot{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);font-family:var(--mono);}
+.step-dot .dot{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;transition:all .2s;background:var(--bg);}
+.step-dot.active .dot{background:var(--orange);border-color:var(--orange);color:white;}
+.step-dot.done .dot{background:var(--orange-bg);border-color:var(--orange);color:var(--orange);}
+.step-dot.active{color:var(--text);font-weight:600;}.step-dot.done{color:var(--text2);}
+.step-line{flex:1;height:1px;background:var(--border2);margin:0 10px;}
+
+.card{background:var(--bg);border-radius:14px;border:0.5px solid var(--border2);padding:1.5rem;margin-bottom:1.5rem;box-shadow:var(--shadow);}
+.card-title{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:1.25rem;}
+
+.menu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.menu-card{border:1.5px solid var(--border2);border-radius:12px;padding:1.25rem;cursor:pointer;transition:all .15s;background:var(--bg2);position:relative;}
+.menu-card:hover:not(.coming-soon){border-color:var(--orange);background:var(--orange-bg);}
+.menu-card.selected{border-color:var(--orange);border-width:2px;background:var(--orange-bg);}
+.menu-card.coming-soon{opacity:.6;cursor:default;}
+.menu-card .mc-icon{font-size:22px;margin-bottom:8px;display:block;}
+.menu-card h3{font-size:14px;font-weight:500;margin-bottom:4px;}
+.menu-card p{font-size:11px;color:var(--text2);line-height:1.6;}
+.soon-badge{position:absolute;top:10px;right:10px;font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:4px;background:var(--bg3);color:var(--text3);}
+
+.upload-label{font-size:11px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.req{color:var(--red);font-size:10px;}.opt{color:var(--text3);font-size:10px;}
+.extracto-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+.extracto-item{display:flex;align-items:center;gap:8px;background:var(--bg2);border:0.5px solid var(--border);border-radius:8px;padding:7px 12px;}
+.ext-country-sel{font-size:11px;padding:3px 8px;border-radius:5px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text);font-family:var(--mono);}
+.ext-name{font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ext-remove{font-size:14px;color:var(--text3);cursor:pointer;border:none;background:none;padding:2px 4px;}
+.ext-remove:hover{color:var(--red);}
+.add-file-btn{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--orange);cursor:pointer;padding:6px 0;border:none;background:none;font-family:var(--font);font-weight:500;}
+.dz{border:1.5px dashed var(--border2);border-radius:8px;padding:.9rem 1.1rem;cursor:pointer;transition:all .2s;background:var(--bg2);display:flex;align-items:center;gap:10px;position:relative;}
+.dz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.dz:hover,.dz.over{border-color:var(--orange);background:var(--orange-bg);}
+.dz.loaded{border-color:var(--orange);border-style:solid;background:var(--orange-bg);}
+.dz-icon{font-size:20px;color:var(--text3);flex-shrink:0;}
+.dz.loaded .dz-icon{color:var(--orange);}
+.dz-name{font-size:12px;font-weight:500;color:var(--text2);}
+.dz.loaded .dz-name{color:var(--orange);}
+.dz-hint{font-size:11px;color:var(--text3);font-family:var(--mono);}
+.divider{height:0.5px;background:var(--border2);margin:1.25rem 0;}
+
+.btn-row{display:flex;gap:8px;margin-top:1.25rem;}
+.btn-primary{flex:1;padding:11px;background:var(--orange);color:white;border:none;border-radius:var(--r);font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px;}
+.btn-primary:disabled{opacity:.35;cursor:not-allowed;}
+.btn-primary:not(:disabled):hover{background:#e03e10;}
+.btn-secondary{padding:11px 18px;background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--r);font-size:13px;font-family:var(--font);cursor:pointer;color:var(--text2);display:flex;align-items:center;gap:6px;}
+.btn-secondary:hover{background:var(--bg2);}
+.btn-blue{padding:11px 20px;background:var(--navy);color:white;border:none;border-radius:var(--r);font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;display:flex;align-items:center;gap:7px;}
+.btn-blue:hover{background:#2a2980;}
+
+.progress-wrap{margin:1rem 0;}
+.progress-label{font-size:11px;color:var(--text2);font-family:var(--mono);margin-bottom:6px;}
+.progress-bar{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--orange);border-radius:2px;transition:width .3s;}
+
+.info-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.5rem;}
+.info-pill{font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:5px;background:var(--bg);color:var(--text2);border:0.5px solid var(--border);box-shadow:var(--shadow);}
+.info-pill span{color:var(--orange);font-weight:700;}
+
+.country-block{margin-bottom:1.5rem;}
+.country-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.country-badge{font-size:11px;font-family:var(--mono);font-weight:500;padding:3px 10px;border-radius:5px;}
+.cb-ARG{background:var(--navy-bg);color:var(--navy);}
+.cb-CHL{background:var(--green-bg);color:var(--green);}
+.cb-MEX{background:var(--orange-bg);color:var(--orange);}
+.mono-label{font-size:11px;color:var(--text3);font-family:var(--mono);}
+.tc-info{font-size:11px;color:var(--text3);font-family:var(--mono);margin-left:auto;}
+table.pivot{width:100%;border-collapse:collapse;}
+table.pivot th{padding:9px 12px;text-align:left;font-size:10px;font-family:var(--mono);font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;border-bottom:0.5px solid var(--border2);background:var(--bg2);white-space:nowrap;}
+table.pivot th.num{text-align:right;}
+table.pivot td{padding:9px 12px;border-top:0.5px solid var(--border);font-family:var(--mono);font-size:12px;white-space:nowrap;}
+table.pivot td.num{text-align:right;}
+table.pivot tr.total-row td{font-weight:600;background:#FFF2EE;border-top:1.5px solid var(--orange-bd);}
+.neg{color:var(--red);}.pos{color:var(--green);}
+
+.table-wrap{overflow:auto;max-height:340px;border:0.5px solid var(--border);border-radius:8px;}
+table.data{width:100%;border-collapse:collapse;min-width:800px;}
+table.data th{padding:8px 12px;text-align:left;font-size:10px;font-family:var(--mono);font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;background:var(--bg2);position:sticky;top:0;white-space:nowrap;border-bottom:0.5px solid var(--border2);}
+table.data th.num{text-align:right;}
+table.data td{padding:7px 12px;border-top:0.5px solid var(--border);font-family:var(--mono);font-size:11.5px;white-space:nowrap;}
+table.data td.num{text-align:right;}
+table.data tr:hover td{background:var(--bg2);}
+
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-family:var(--mono);font-weight:500;}
+.b-online{background:var(--orange-bg);color:var(--orange);}
+.b-offline{background:var(--navy-bg);color:var(--navy);}
+.b-saas{background:var(--purple-bg);color:var(--purple);}
+.b-hw{background:var(--green-bg);color:var(--green);}
+.b-smartpos{background:rgba(0,0,0,.06);color:var(--text2);}
+.b-payout{background:rgba(0,150,200,.1);color:#0096c8;}
+.b-err{background:var(--red-bg);color:var(--red);}
+
+.unclass-item{background:var(--bg);border:0.5px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:8px;display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:center;}
+.unclass-item.resolved{border-color:var(--green);background:var(--green-bg);}
+.unclass-field{font-size:11px;font-family:var(--mono);color:var(--text2);}
+.unclass-field strong{display:block;color:var(--text);font-size:12px;margin-bottom:2px;}
+.unclass-assign{display:flex;gap:6px;align-items:center;}
+.unclass-select{font-size:12px;padding:5px 8px;border-radius:6px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text);font-family:var(--font);flex:1;}
+.unclass-save-btn{padding:5px 12px;background:var(--orange);color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font);font-weight:500;}
+.unclass-save-btn:hover{background:#e03e10;}
+.unclass-saved{font-size:11px;color:var(--green);font-family:var(--mono);}
+
+/* TOOLTIPS */
+.tooltip-wrap{position:relative;display:inline-flex;align-items:center;gap:5px;}
+.tooltip-icon{width:16px;height:16px;border-radius:50%;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text3);font-size:10px;display:inline-flex;align-items:center;justify-content:center;cursor:help;flex-shrink:0;font-family:var(--mono);font-style:normal;}
+.tooltip-box{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 8px);background:var(--text);color:var(--bg);font-size:11px;font-family:var(--font);line-height:1.5;padding:8px 12px;border-radius:8px;width:220px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:50;white-space:normal;}
+.tooltip-box::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--text);}
+.tooltip-icon:hover + .tooltip-box{opacity:1;}
+
+.screen{display:none;}.screen.active{display:block;}
+
+/* ── dLOCAL STYLES ──────────────────────────────────────────────── */
+.dlocal-screen{display:none}
+.dlocal-screen.active{display:block}
+
+.dlocal-screen .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
   }
-  #vc-app { font-family: 'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: var(--texto); max-width: 1000px; background: var(--fondo); padding: 20px; border-radius: 16px; }
-  #vc-app * { box-sizing: border-box; font-family: inherit; }
+.dlocal-screen header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+.dlocal-screen .logo {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    background: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 26px;
+  }
+  h1 { font-size: 22px; font-weight: 600; }
+  .subtitle { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
 
-  .vc-hero { position: relative; overflow: hidden; background: var(--naranja); border-radius: 12px; padding: 28px 30px; margin-bottom: 20px; }
-  .vc-hero::before { content: ''; position: absolute; top: -50px; right: -30px; width: 170px; height: 170px; border-radius: 50%; background: rgba(255,255,255,0.14); }
-  .vc-hero::after { content: ''; position: absolute; bottom: -55px; right: 90px; width: 110px; height: 110px; border-radius: 50%; background: rgba(255,255,255,0.10); }
-  .vc-h1 { position: relative; font-size: 24px; font-weight: 800; margin: 0 0 6px; color: #fff; letter-spacing: -0.2px; }
-  .vc-sub { position: relative; font-size: 13.5px; font-weight: 400; color: #fff; opacity: .92; margin: 0; max-width: 640px; line-height: 1.5; }
-  .vc-eyebrow { position: relative; display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--naranja); background: #fff; border-radius: 20px; padding: 3px 10px; margin-bottom: 10px; }
+.dlocal-screen .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 4px; letter-spacing: -0.01em; }
+  .card p.hint { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
 
-  .vc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 18px; }
-  .vc-card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
-  .vc-card label { display: block; font-size: 12.5px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
-  .vc-card input[type=file] { font-size: 11px; width: 100%; color: var(--texto); }
-  .vc-status { font-size: 11.5px; font-weight: 600; color: var(--muted); margin-top: 8px; min-height: 14px; }
-  .vc-status.ok { color: var(--naranja); }
+.dlocal-screen .uploads {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 640px) { .uploads { grid-template-columns: 1fr; } }
 
-  .vc-btn { font-family: 'Barlow', sans-serif; background: var(--naranja); color: #fff; border: none; border-radius: 8px; padding: 11px 22px; font-size: 14.5px; font-weight: 700; cursor: pointer; transition: opacity .15s; }
-  .vc-btn:hover { opacity: .88; }
-  .vc-btn:disabled { background: var(--muted); cursor: not-allowed; }
-  .vc-btn.navy { background: var(--navy); }
-  .vc-btn.ghost { background: #fff; color: var(--texto); border: 1.5px solid var(--muted); padding: 6px 14px; font-size: 12px; font-weight: 600; }
-  .vc-btn.ghost:hover { background: #f3f4f6; opacity: 1; }
+.dlocal-screen .drop {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 20px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .15s ease;
+    background: #FCFCFC;
+    position: relative;
+  }
+  .drop:hover { border-color: var(--primary); background: var(--primary-light); }
+  .drop.dragover { border-color: var(--primary); background: var(--primary-light); border-style: solid; }
+  .drop.loaded { border-color: var(--success); border-style: solid; background: #F0FDF4; }
+  .drop.error { border-color: var(--error); border-style: solid; background: #FEF2F2; }
+  .drop input[type=file] { display: none; }
+  .drop .label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .drop .status { font-size: 12px; color: var(--text-muted); }
+  .drop.loaded .status { color: var(--success); font-weight: 500; }
+  .drop.error .status { color: var(--error); font-weight: 500; }
+  .drop .filename { font-size: 11px; margin-top: 4px; color: var(--text-muted); word-break: break-all; }
 
-  .vc-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; margin: 22px 0; }
-  .vc-metric { border-radius: 12px; padding: 14px 16px; background: #fff; border: 1px solid var(--border); }
-  .vc-metric .n { font-size: 26px; font-weight: 800; display: block; color: var(--naranja); line-height: 1.1; }
-  .vc-metric .l { font-size: 11.5px; font-weight: 600; color: var(--texto); }
+  /* Tooltip */
+.dlocal-screen .tip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #E5E7EB;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 6px;
+    cursor: help;
+    position: relative;
+    vertical-align: middle;
+  }
+  .tip:hover { background: var(--primary); color: white; }
+.dlocal-screen .tip .tip-text {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1F2937;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+    white-space: normal;
+    width: 240px;
+    text-align: left;
+    z-index: 20;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    transition: opacity .15s ease;
+    pointer-events: none;
+  }
+.dlocal-screen .tip .tip-text::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border: 5px solid transparent;
+    border-top-color: #1F2937;
+  }
+  .tip:hover .tip-text { visibility: visible; opacity: 1; }
 
-  .vc-section { background: #fff; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
-  .vc-section-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #fff; cursor: pointer; gap: 10px; border-bottom: 1px solid var(--border); }
-  .vc-section-head h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--navy); display: flex; align-items: center; }
-  .vc-section-body { padding: 14px 16px; display: none; }
-  .vc-section-body.open { display: block; }
-  .vc-note { font-size: 11.5px; color: var(--muted); margin: 0 0 10px; }
+  /* Saldos iniciales */
+.dlocal-screen .saldos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--border);
+  }
+  @media (max-width: 640px) { .saldos { grid-template-columns: 1fr; } }
+.dlocal-screen .saldo-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+.dlocal-screen .saldo-field label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+.dlocal-screen .saldo-input-wrap {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+  }
+  .saldo-input-wrap:focus-within { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
+.dlocal-screen .saldo-input-wrap .prefix {
+    display: flex; align-items: center;
+    padding: 0 10px;
+    background: #F9FAFB;
+    border-right: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+.dlocal-screen .saldo-input-wrap input {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    background: transparent;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
 
-  .vc-pill { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 3px 11px; border-radius: 20px; margin-left: 10px; }
-  .vc-pill.paid { background: #dcfce7; color: #15803d; }
-  .vc-pill.pending { background: #fef9c3; color: #854d0e; }
-  .vc-pill.refunded { background: #f3e8ff; color: #7e22ce; }
-  .vc-pill.cancelled { background: #fee2e2; color: #991b1b; }
+.dlocal-screen .actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+.dlocal-screen .btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease;
+    font-family: inherit;
+  }
+  .btn:hover:not(:disabled) { background: var(--primary-dark); }
+  .btn:disabled { background: #D1D5DB; cursor: not-allowed; }
+.dlocal-screen .btn.secondary {
+    background: white;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn.secondary:hover:not(:disabled) { background: #F3F4F6; }
 
-  .vc-table-wrap { max-height: 260px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
-  table.vc-t { border-collapse: collapse; width: 100%; font-size: 11.5px; }
-  table.vc-t thead th { position: sticky; top: 0; background: var(--navy); color: #fff; text-align: left; padding: 8px 9px; font-weight: 700; }
-  table.vc-t td { padding: 6px 9px; border-bottom: 1px solid var(--border); white-space: nowrap; color: var(--texto); }
-  table.vc-t tr:nth-child(even) td { background: #FAFAFF; }
+.dlocal-screen .field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+.dlocal-screen .field input {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    width: 110px;
+  }
+  .field input:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
 
-  .vc-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
-  .vc-tab { font-family: 'Barlow', sans-serif; background: #fff; color: var(--texto); border: 1.5px solid var(--border); border-radius: 8px; padding: 9px 18px; font-size: 13.5px; font-weight: 700; cursor: pointer; }
-  .vc-tab.active { background: var(--navy); color: #fff; border-color: var(--navy); }
-  .vc-tab:not(.active):hover { background: var(--fondo); }
+  .preview { display: none; }
+  .preview.visible { display: block; }
+.dlocal-screen .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+.dlocal-screen .stat {
+    background: #F9FAFB;
+    padding: 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .stat .value { font-size: 22px; font-weight: 600; color: var(--text); }
+  .stat .label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
-  .vc-rule-card { background: var(--fondo); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
-  .vc-rule-card h4 { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: var(--navy); }
-  .vc-rule-card p { margin: 0; font-size: 12.5px; color: var(--texto); line-height: 1.5; }
-  .vc-log { font-size: 11.5px; font-weight: 600; color: var(--navy); margin-left: 12px; }
-  .vc-inputrow input[type=text] { font-family: inherit; }
+.dlocal-screen table {
+    width: 100%;
+    font-size: 12px;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { background: #F9FAFB; font-weight: 600; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.dlocal-screen .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+.dlocal-screen .tab {
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-weight: 500;
+    margin-bottom: -1px;
+  }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .table-wrapper { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+
+.dlocal-screen .commissions {
+    background: var(--primary-light);
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-top: 16px;
+    font-size: 13px;
+  }
+  .commissions strong { display: block; margin-bottom: 6px; color: var(--primary-dark); }
+  .commissions ul { list-style: none; margin: 0; padding: 0; }
+  .commissions li { display: flex; justify-content: space-between; padding: 3px 0; font-variant-numeric: tabular-nums; }
+
+.dlocal-screen .notice {
+    background: #FFFBEB;
+    border-left: 3px solid var(--warning);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #92400E;
+    margin-top: 12px;
+  }
+.dlocal-screen .error-msg {
+    background: #FEF2F2;
+    border-left: 3px solid var(--error);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--error);
+    margin-top: 12px;
+    display: none;
+  }
+  .error-msg.visible { display: block; }
+
+.dlocal-screen footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-top: 32px;
+  }
+  footer a { color: var(--primary); text-decoration: none; }
+
+.dlocal-screen .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+
+
+/* ── dLOCAL ─────────────────────────────────────────────────────────── */
+.dlocal-screen { display:none; }
+.dlocal-screen.active { display:block; }
+.dlocal-screen .container { max-width:960px; margin:0 auto; padding:32px 24px 64px; }
+.dlocal-screen .card { background:#fff; border:1px solid rgba(0,0,0,.13); border-radius:12px; padding:24px; margin-bottom:20px; box-shadow:0 2px 16px rgba(0,0,0,.06); }
+.dlocal-screen .card h2 { font-size:15px; font-weight:600; margin-bottom:4px; }
+.dlocal-screen .card p.hint { font-size:13px; color:#6B6B6B; margin-bottom:16px; }
+.dlocal-screen .uploads { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.dlocal-screen .drop { border:1.5px dashed rgba(0,0,0,.13); border-radius:10px; padding:20px 16px; text-align:center; cursor:pointer; transition:all .15s; background:#F5F4F0; position:relative; }
+.dlocal-screen .drop:hover,.dlocal-screen .drop.dragover { border-color:var(--orange); background:var(--orange-bg); }
+.dlocal-screen .drop.loaded { border-color:var(--green); border-style:solid; background:var(--green-bg); }
+.dlocal-screen .drop.error { border-color:var(--red); border-style:solid; background:var(--red-bg); }
+.dlocal-screen .drop input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+.dlocal-screen .drop .label { font-size:13px; font-weight:600; margin-bottom:4px; }
+.dlocal-screen .drop .status { font-size:12px; color:#6B6B6B; }
+.dlocal-screen .drop.loaded .status { color:var(--green); font-weight:500; }
+.dlocal-screen .drop.error .status { color:var(--red); font-weight:500; }
+.dlocal-screen .drop .filename { font-size:11px; margin-top:4px; color:#6B6B6B; word-break:break-all; }
+.dlocal-screen .btn { background:var(--orange); color:white; border:none; padding:12px 24px; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; font-family:var(--font); }
+.dlocal-screen .btn:hover:not(:disabled) { background:#e03e10; }
+.dlocal-screen .btn:disabled { background:#D1D5DB; cursor:not-allowed; }
+.dlocal-screen .btn.secondary { background:white; color:#3B3B3B; border:1px solid rgba(0,0,0,.13); }
+.dlocal-screen .btn.secondary:hover:not(:disabled) { background:#F5F4F0; }
+
+/* dLocal remaining styles */
+.dlocal-screen .logo {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    background: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 26px;
+  }
+.dlocal-screen .subtitle { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+.dlocal-screen .tip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #E5E7EB;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 6px;
+    cursor: help;
+    position: relative;
+    vertical-align: middle;
+  }
+.dlocal-screen .tip .tip-text {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1F2937;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+    white-space: normal;
+    width: 240px;
+    text-align: left;
+    z-index: 20;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    transition: opacity .15s ease;
+    pointer-events: none;
+  }
+.dlocal-screen .tip-text { visibility: visible; opacity: 1; }
+.dlocal-screen .saldos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--border);
+  }
+.dlocal-screen .saldos { grid-template-columns: 1fr; }
+.dlocal-screen .saldo-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+.dlocal-screen .saldo-field label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+.dlocal-screen .saldo-input-wrap {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+  }
+.dlocal-screen .saldo-input-wrap .prefix {
+    display: flex; align-items: center;
+    padding: 0 10px;
+    background: #F9FAFB;
+    border-right: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+.dlocal-screen .saldo-input-wrap input {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    background: transparent;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+.dlocal-screen .actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+.dlocal-screen .field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+.dlocal-screen .field input {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    width: 110px;
+  }
+.dlocal-screen .preview { display: none; }
+.dlocal-screen .preview.visible { display: block; }
+.dlocal-screen .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+.dlocal-screen .stat {
+    background: #F9FAFB;
+    padding: 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+.dlocal-screen .stat .value { font-size: 22px; font-weight: 600; color: var(--text); }
+.dlocal-screen .stat .label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.dlocal-screen .num { text-align: right; font-variant-numeric: tabular-nums; }
+.dlocal-screen .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+.dlocal-screen .tab {
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-weight: 500;
+    margin-bottom: -1px;
+  }
+.dlocal-screen .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.dlocal-screen .table-wrapper { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.dlocal-screen .commissions {
+    background: var(--primary-light);
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-top: 16px;
+    font-size: 13px;
+  }
+.dlocal-screen .commissions strong { display: block; margin-bottom: 6px; color: var(--primary-dark); }
+.dlocal-screen .commissions ul { list-style: none; margin: 0; padding: 0; }
+.dlocal-screen .commissions li { display: flex; justify-content: space-between; padding: 3px 0; font-variant-numeric: tabular-nums; }
+.dlocal-screen .notice {
+    background: #FFFBEB;
+    border-left: 3px solid var(--warning);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #92400E;
+    margin-top: 12px;
+  }
+.dlocal-screen .error-msg {
+    background: #FEF2F2;
+    border-left: 3px solid var(--error);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--error);
+    margin-top: 12px;
+    display: none;
+  }
+.dlocal-screen .error-msg.visible { display: block; }
+.dlocal-screen .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+
 </style>
 </head>
 <body>
 
-<div id="vc-app">
-  <div class="vc-hero">
-    <span class="vc-eyebrow">Fudo ↔ Odoo</span>
-    <p class="vc-h1">Procesador de diccionario</p>
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <svg viewBox="0 0 24 24"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+    </div>
+    <h1>Procesador de extractos</h1>
   </div>
-
-  <div class="vc-tabs">
-    <button class="vc-tab active" id="tab-etapa1" onclick="vcSetEtapa(1)">Etapa 1 · Odoo</button>
-    <button class="vc-tab" id="tab-etapa2" onclick="vcSetEtapa(2)">Etapa 2 · Dash</button>
-    <button class="vc-tab" id="tab-etapa3" onclick="vcSetEtapa(3)">Próximamente</button>
-  </div>
-
-  <div id="etapa1-panel">
-    <div class="vc-card" style="max-width:340px; margin-bottom:16px;">
-      <label>Compañía</label>
-      <select id="sel-compania" onchange="vcSetCompania(this.value)" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; font-family:inherit; font-size:13px; color:var(--texto); background:#fff;">
-        <option value="comandarina_srl">Comandarina S.R.L. (Argentina)</option>
-        <option value="anser_indicus">Anser Indicus SpA (Chile)</option>
-        <option value="comandarina_mx">Comandarina SA de CV (México)</option>
-        <option value="fudo_group">Fudo Group LLC</option>
-      </select>
-    </div>
-
-    <div id="etapa1-comandarina_srl">
-      <div class="vc-grid">
-        <div class="vc-card">
-          <label>1. Odoo (Contacto res_partner) — .xlsx o .csv, con External ID y Tipo de identificación</label>
-          <input type="file" id="f-odoo" accept=".xlsx,.csv" />
-          <div class="vc-status pending" id="s-odoo">Sin cargar</div>
-        </div>
-        <div class="vc-card">
-          <label>2. Dash — Accounts + Billing (.zip)</label>
-          <input type="file" id="f-dashzip" accept=".zip" />
-          <div class="vc-status pending" id="s-dashzip">Sin cargar</div>
-        </div>
-        <div class="vc-card">
-          <label>3. Metabase AFIP/ARCA (xlsx)</label>
-          <input type="file" id="f-metabase" accept=".xlsx" />
-          <div class="vc-status pending" id="s-metabase">Sin cargar</div>
-        </div>
-        <div class="vc-card">
-          <label>4. Admin emails (csv)</label>
-          <input type="file" id="f-admin" accept=".csv" />
-          <div class="vc-status pending" id="s-admin">Sin cargar</div>
-        </div>
-      </div>
-
-      <button class="vc-btn" id="btn-process" disabled>Procesar archivos</button>
-      <span class="vc-log" id="proc-log"></span>
-
-      <div id="results" style="margin-top:24px; display:none;"></div>
-    </div>
-
-    <div id="etapa1-proximamente" style="display:none;">
-      <div class="vc-card" style="text-align:center; padding:36px 20px; color:var(--muted);">
-        <p style="margin:0; font-size:14px; font-weight:600;">🚧 Próximamente</p>
-        <p style="margin:6px 0 0; font-size:12.5px;">Todavía no está armado el procesamiento para esta compañía. Pedilo cuando lo necesites y lo sumamos.</p>
-      </div>
-    </div>
-  </div>
-
-  <div id="etapa2-panel" style="display:none;">
-    <div class="vc-grid">
-      <div class="vc-card">
-        <label>1. Odoo actualizado (Contacto res_partner) — .xlsx o .csv, con dirección completa</label>
-        <input type="file" id="f2-odoo" accept=".xlsx,.csv" />
-        <div class="vc-status pending" id="s2-odoo">Sin cargar</div>
-      </div>
-      <div class="vc-card">
-        <label>2. Dash — Accounts + Billing (.zip)</label>
-        <input type="file" id="f2-dashzip" accept=".zip" />
-        <div class="vc-status pending" id="s2-dashzip">Sin cargar</div>
-      </div>
-    </div>
-
-    <button class="vc-btn" id="btn-process-2" disabled>Procesar archivos</button>
-    <span class="vc-log" id="proc-log-2"></span>
-
-    <div id="results-2" style="margin-top:24px; display:none;"></div>
-  </div>
-
-  <div id="etapa3-panel" style="display:none;">
-    <p class="vc-note" style="margin-top:0;">
-      Ideas y pedidos que fueron surgiendo pero todavía no se programaron — se editan directo en el
-      <a href="https://docs.google.com/spreadsheets/d/1e6qAnhdD1PQefr--q0vfg-6tp1dechYXiNKY0lldV8M/edit?gid=0#gid=0" target="_blank" style="color:var(--navy);font-weight:700;">Google Sheet "Próximamente"</a>
-      (agregar, editar o borrar filas ahí, sin tocar código) — <button class="vc-btn ghost" onclick="cargarProximamente()" style="padding:4px 12px;">Actualizar</button>
-    </p>
-    <div id="proximamente-status" class="vc-log" style="margin-left:0;"></div>
-    <div id="proximamente-cards"></div>
-  </div>
-
-  <div class="vc-section" style="margin-top:24px;" id="sec-reglas-wrap">
-    <div class="vc-section-head" onclick="vcToggle('sec-reglas')">
-      <h3>Reglas activas</h3>
-      <span class="vc-btn ghost">Ver</span>
-    </div>
-    <div class="vc-section-body" id="sec-reglas">
-      <p class="vc-note" style="margin-top:0;">Esto es de solo lectura: refleja la lógica que corre hoy en esta versión del archivo. Para cambiar una regla no se edita acá — se pide el cambio directamente y se sube el archivo actualizado a GitHub, así todo el equipo ve siempre la misma versión y queda el historial en los commits del repo.</p>
-      <div id="reglas-cards"></div>
-    </div>
+  <div class="topbar-right">
+    <div class="tc-pill">ARS <span id="tc-ars">—</span></div>
+    <div class="tc-pill">CLP <span id="tc-clp">—</span></div>
+    <div class="tc-pill">MXN <span id="tc-mxn">—</span></div>
+    <div class="rules-badge" id="rules-badge">⚡ 0 reglas</div>
   </div>
 </div>
 
+<div class="main">
+  <div class="steps">
+    <div class="step-dot active" id="step-1"><div class="dot">1</div><span>¿Qué necesitás?</span></div>
+    <div class="step-line"></div>
+    <div class="step-dot" id="step-2"><div class="dot">2</div><span>Archivos</span></div>
+    <div class="step-line"></div>
+    <div class="step-dot" id="step-3"><div class="dot">3</div><span>Resultado</span></div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="screen active" id="screen-1">
+    <div class="card">
+      <div class="card-title">¿Qué necesitás hoy?</div>
+      <div class="menu-grid">
+        <div class="menu-card" id="card-td" onclick="selectOutput('td')">
+          <span class="mc-icon">📦</span>
+          <h3>Resumen Tu Delivery</h3>
+          <p>Diferencia tipos de deuda pagados con ID de Dash, País y tipo de cambio del día.</p>
+        </div>
+        <div class="menu-card" id="card-extracto" onclick="selectOutput('extracto')">
+          <span class="mc-icon">📋</span>
+          <h3>Extracto de Mercado Pago</h3>
+          <p>Clasifica los movimientos, asigna ID y nombre de cuenta.</p>
+        </div>
+        <div class="menu-card" id="card-dlocal" onclick="selectOutput('dlocal')">
+          <span class="mc-icon">🏦</span>
+          <h3>Extracto de dLocal</h3>
+          <p>Procesa los balances de dLocal y arroja el extracto para importar a Odoo.</p>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" id="btn-next-1" disabled onclick="goStep(2)">Continuar →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="screen" id="screen-2">
+    <div class="card">
+      <div class="card-title" id="step2-title">Archivos</div>
+      <div class="upload-label">
+        Extracto de Mercado Pago <span class="req">requerido</span>
+        <span class="tooltip-wrap">
+          <span class="tooltip-icon">?</span>
+          <span class="tooltip-box">Reporte "Todas las transacciones" descargable desde el portal de Mercado Pago.</span>
+        </span>
+      </div>
+      <div class="extracto-list" id="extracto-list"></div>
+      <button class="add-file-btn" onclick="document.getElementById('ext-input').click()">＋ Agregar extracto</button>
+      <input type="file" id="ext-input" accept=".xlsx,.xls" style="display:none" onchange="onExtractoFile(event)">
+
+      <div id="acc-section" style="display:none">
+        <div class="divider"></div>
+        <div class="upload-label">
+          Accounts (Dash) <span class="req">requerido</span>
+          <span class="tooltip-wrap">
+            <span class="tooltip-icon">?</span>
+            <span class="tooltip-box">CSV de accounts del Reporte de cuentas descargable desde Dash. Extraé el CSV del ZIP antes de subir.</span>
+          </span>
+        </div>
+        <div class="dz" id="dz-acc" ondragover="onDrag(event,'dz-acc')" ondragleave="offDrag('dz-acc')" ondrop="onDropAcc(event)">
+          <input type="file" accept=".xlsx,.xls,.csv" onchange="loadAcc(event)">
+          <div class="dz-icon">🗄</div>
+          <div>
+            <div class="dz-name" id="acc-name">accounts_XXXXX.csv</div>
+            <div class="dz-hint">CSV o XLSX</div>
+          </div>
+        </div>
+        <div id="lib-section" style="display:none;margin-top:1rem">
+          <div class="divider"></div>
+
+          <!-- Periodo + Saldo inicial -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem">
+            <div>
+              <div class="upload-label" style="margin-bottom:6px">
+                Período a importar <span class="req">requerido</span>
+                <span class="tooltip-wrap">
+                  <span class="tooltip-icon">?</span>
+                  <span class="tooltip-box">Mes que estás facturando. Los paid online se filtran por fecha de aprobación dentro de este rango.</span>
+                </span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <input type="date" id="periodo-desde" style="flex:1;padding:8px;border:0.5px solid var(--border2);border-radius:8px;font-family:var(--mono);font-size:12px;background:var(--bg2)">
+                <input type="date" id="periodo-hasta" style="flex:1;padding:8px;border:0.5px solid var(--border2);border-radius:8px;font-family:var(--mono);font-size:12px;background:var(--bg2)">
+              </div>
+            </div>
+            <div>
+              <div class="upload-label" style="margin-bottom:6px">
+                Saldo inicial Odoo <span class="req">requerido</span>
+                <span class="tooltip-wrap">
+                  <span class="tooltip-icon">?</span>
+                  <span class="tooltip-box">Saldo de la cuenta MP en Odoo al inicio del período.</span>
+                </span>
+              </div>
+              <input type="number" id="saldo-inicial" step="0.01" placeholder="0.00"
+                style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:8px;font-family:var(--mono);font-size:12px;background:var(--bg2)">
+            </div>
+          </div>
+
+          <!-- Liberaciones: archivo o manual -->
+          <div class="upload-label" style="margin-bottom:6px">
+            Reporte de Liberaciones de Mercado Pago
+            <span class="tooltip-wrap">
+              <span class="tooltip-icon">?</span>
+              <span class="tooltip-box">Reporte "reserve-release" descargable desde el portal de Mercado Pago. Si no tenés el archivo podés ingresar el saldo final manualmente.</span>
+            </span>
+          </div>
+          <div class="dz" id="dz-lib" ondragover="onDrag(event,'dz-lib')" ondragleave="offDrag('dz-lib')" ondrop="onDropLib(event)">
+            <input type="file" accept=".xlsx,.xls" onchange="loadLib(event)">
+            <div class="dz-icon">📊</div>
+            <div>
+              <div class="dz-name" id="lib-name">reserve-release-XXXXX.xlsx</div>
+              <div class="dz-hint">XLSX — o ingresá el saldo manualmente abajo</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+            <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">o ingresá el saldo final MP manualmente:</span>
+            <input type="number" id="saldo-final-manual" step="0.01" placeholder="0.00"
+              style="width:140px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:8px;font-family:var(--mono);font-size:12px;background:var(--bg2)"
+              oninput="onSaldoManualChange()">
+          </div>
+        </div>
+      </div>
+
+      <div class="progress-wrap" id="progress-wrap" style="display:none">
+        <div class="progress-label" id="progress-label">Procesando...</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="goStep(1)">← Volver</button>
+        <button class="btn-primary" id="btn-process" disabled onclick="process()">⚡ Procesar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="screen" id="screen-3">
+    <div class="info-pills" id="info-pills"></div>
+    <div id="result-content"></div>
+    <div class="card" id="unclass-card" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+        <div class="card-title" style="margin:0;color:var(--red)">⚠ Movimientos no clasificados</div>
+        <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">Las reglas se guardan para próximas sesiones</span>
+      </div>
+      <div id="unclass-list"></div>
+    </div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button class="btn-secondary" onclick="goStep(2)">← Volver</button>
+      <button class="btn-blue" onclick="exportExcel()">⬇ Descargar Excel</button>
+    </div>
+    <p style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:8px;text-align:center">
+      Excel con hojas según el reporte seleccionado
+    </p>
+  </div>
+
+<!-- ── dLOCAL SCREEN ──────────────────────────────────────────── -->
+<div class="dlocal-screen" id="screen-dlocal">
+  <div style="padding:1rem 0 0.5rem;max-width:960px;margin:0 auto;padding-left:24px">
+    <button onclick="closeDlocal()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:white;border:0.5px solid rgba(0,0,0,.13);border-radius:8px;font-size:13px;cursor:pointer;font-family:Barlow,sans-serif;color:#3B3B3B;">← Volver al menú</button>
+  </div>
+  <div class="container">
+    <div class="container">
+  <header>
+    <div class="logo">F</div>
+    <div>
+      <h1>Extractos dLocal</h1>
+      <div class="subtitle">Generador de extracto mensual para subir a Odoo · Fudo</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>1 · Subí los 4 archivos</h2>
+    <p class="hint">Los archivos se procesan en tu navegador. No se sube nada a ningún servidor.</p>
+    <div class="uploads">
+      <label class="drop" id="drop-dlocal">
+        <input type="file" accept=".csv" data-key="dlocal">
+        <div class="label">
+          dLocal Fudo (CSV)
+          <span class="tip" title='Reporte "cleared transactions" descargable desde la página de dlocal Fudo.' onclick="event.preventDefault()">?<span class="tip-text">Reporte <b>"cleared transactions"</b> descargable desde la página de dlocal Fudo.</span></span>
+        </div>
+        <div class="status">Sin cargar</div>
+        <div class="filename"></div>
+      </label>
+      <label class="drop" id="drop-brl">
+        <input type="file" accept=".csv" data-key="brl">
+        <div class="label">
+          dLocal Brasil (CSV)
+          <span class="tip" title='Reporte "cleared transactions" descargable desde la página de dlocal Deli Brasil.' onclick="event.preventDefault()">?<span class="tip-text">Reporte <b>"cleared transactions"</b> descargable desde la página de dlocal Deli Brasil.</span></span>
+        </div>
+        <div class="status">Sin cargar</div>
+        <div class="filename"></div>
+      </label>
+      <label class="drop" id="drop-plantilla">
+        <input type="file" accept=".xlsx,.xls" data-key="plantilla">
+        <div class="label">
+          Plantilla Odoo (XLSX)
+          <span class="tip" title="Base de clientes descargada de Odoo." onclick="event.preventDefault()">?<span class="tip-text">Base de clientes descargada de Odoo.</span></span>
+        </div>
+        <div class="status">Sin cargar</div>
+        <div class="filename"></div>
+      </label>
+      <label class="drop" id="drop-accountss">
+        <input type="file" accept=".csv" data-key="accountss">
+        <div class="label">
+          Accounts Dash (CSV)
+          <span class="tip" title="Base de clientes descargada de Dash." onclick="event.preventDefault()">?<span class="tip-text">Base de clientes descargada de Dash.</span></span>
+        </div>
+        <div class="status">Sin cargar</div>
+        <div class="filename"></div>
+      </label>
+    </div>
+
+    <div class="saldos">
+      <div class="saldo-field">
+        <label for="saldo-dlocal">
+          Saldo inicial dLocal Fudo
+          <span class="tip" title="Saldo inicial de la cuenta dLocal Fudo al comienzo del período. Se agrega al final de la solapa dLocal en el archivo generado." style="margin-left:4px;">?<span class="tip-text">Saldo inicial de la cuenta dLocal Fudo al comienzo del período. Se agrega al final de la solapa dLocal en el archivo generado.</span></span>
+        </label>
+        <div class="saldo-input-wrap">
+          <span class="prefix">USD</span>
+          <input type="text" id="saldo-dlocal" inputmode="decimal" placeholder="0,00">
+        </div>
+      </div>
+      <div class="saldo-field">
+        <label for="saldo-brl">
+          Saldo inicial dLocal Brasil
+          <span class="tip" title="Saldo inicial de la cuenta dLocal Deli Brasil al comienzo del período. Se agrega al final de la solapa dLocal BRL en el archivo generado." style="margin-left:4px;">?<span class="tip-text">Saldo inicial de la cuenta dLocal Deli Brasil al comienzo del período. Se agrega al final de la solapa dLocal BRL en el archivo generado.</span></span>
+        </label>
+        <div class="saldo-input-wrap">
+          <span class="prefix">BRL</span>
+          <input type="text" id="saldo-brl" inputmode="decimal" placeholder="0,00">
+        </div>
+      </div>
+    </div>
+
+    <div class="error-msg" id="error-msg"></div>
+
+    <div class="actions" style="justify-content: flex-end; margin-top: 20px;">
+      <button class="btn" id="btn-procesar" disabled>Procesar archivos</button>
+    </div>
+  </div>
+
+  <div class="card preview" id="preview">
+    <h2>2 · Revisá y descargá</h2>
+    <p class="hint">Verificá totales y comisiones antes de bajar el archivo final.</p>
+
+    <div class="summary-grid" id="summary-grid"></div>
+
+    <div class="commissions" id="commissions"></div>
+
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-sheet="dlocal">dLocal (<span id="count-dlocal">0</span>)</div>
+      <div class="tab" data-sheet="brl">dLocal BRL (<span id="count-brl">0</span>)</div>
+    </div>
+    <div class="table-wrapper">
+      <table id="preview-table">
+        <thead>
+          <tr>
+            <th>Fecha</th><th>Descripción</th><th>Contacto/ID DB</th><th>Referencia</th>
+            <th>Mon.</th><th class="num">Imp. moneda</th><th class="num">Importe</th><th class="num">Invoice</th>
+          </tr>
+        </thead>
+        <tbody id="preview-tbody"></tbody>
+      </table>
+    </div>
+    <div class="notice">
+      <strong>Recordá:</strong> la fila <em>"Transf. Dlocal to SVB"</em> (si corresponde) se sigue agregando a mano en el archivo descargado.
+    </div>
+
+    <div class="actions" style="margin-top: 20px;">
+      <div class="field" style="color: var(--text);">
+        <span>Filas con <strong>#N/D</strong> a revisar: <strong id="nd-count">0</strong></span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn secondary" id="btn-descargar">Descargar XLSX (revisión)</button>
+        <button class="btn" id="btn-descargar-csv">
+          Descargar CSVs para Odoo
+          <span class="tip" title="Baja 2 archivos CSV (uno por cada cuenta) en formato listo para importar en Odoo. Si el navegador te pregunta si permitir descargas múltiples, aceptalo." style="margin-left: 4px; background: rgba(255,255,255,.25); color: white;">?<span class="tip-text">Baja 2 archivos CSV (uno por cada cuenta) en formato listo para importar en Odoo. Si el navegador te pregunta si permitir descargas múltiples, aceptalo.</span></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>Hecho para Fudo · Procesado 100% en tu navegador · <a href="#" id="reset-link">Empezar de nuevo</a></p>
+  </footer>
+</div>
+  </div>
+</div>
+</div>
+
 <script>
-(function(){
-  const REGLAS_ETAPA1 = [
-    { titulo: 'Prioridad de fuente', texto: 'Si Billing.Código existe (CUIT/DNI real), Billing manda. Si Billing.Código NO existe (Sin datos/0), se consulta Metabase (Comandarina + approved) como respaldo.' },
-    { titulo: 'Cuentas internas (Fudo/Deli) — exclusión previa', texto: 'Si el Estado comercial de la cuenta en Dash es "Activo" Y el mail del admin con más logins termina en @fu.do o @deli.com.br, la cuenta se excluye por completo del análisis (no entra a ninguna regla, no se crea ni se modifica en Odoo). Se muestra como alerta aparte con el nombre y el link a Dash. La modificación de su estado en Dash se hace manualmente, fuera de esta herramienta. Excepción confirmada que NO se marca como interna: Referencia 154948 (tienda_cholita), cuenta real revisada a mano.' },
-    { titulo: 'Regla 1 — OK, sin acción', texto: 'Billing.Código existe, NIF = Código, Mail = Email, y el contacto está Activo en Odoo. Incluye el caso "Aprobado": sin billing, sin Metabase, ya existe en Odoo como Consumidor Final → no se toca.' },
-    { titulo: 'Regla 1b — Reactivar', texto: 'Igual que la Regla 1 (NIF y mail coinciden) pero el contacto está Archivado en Odoo → se genera una actualización que pone Activo = TRUE (cliente viejo que volvió a facturar). Las reglas 2, 3b y 4a también reactivan automáticamente si encuentran el contacto archivado.' },
-    { titulo: 'Regla 2 — Actualizar mail', texto: 'Billing.Código existe, NIF = Código, Mail ≠ Email → se actualiza solo el mail.' },
-    { titulo: 'Regla 2b — Actualizar nombre (Consumidor Final)', texto: 'Sin billing, sin Metabase, ya existe en Odoo, y el Nombre de la cuenta en Dash cambió respecto al de Odoo → se actualiza solo el Nombre. No aplica cuando hay billing (ahí Odoo ya está validado contra ARCA y manda).' },
-    { titulo: 'Regla 3a — Baja + Alta', texto: 'Billing.Código existe, NIF ≠ Código, y el NIF de Odoo NO está vacío (otra razón social / otro CUIT) → se da de baja el contacto viejo y se crea uno nuevo con los datos de Billing.' },
-    { titulo: 'Regla 3b — Actualizar mismo contacto', texto: 'Billing.Código existe, NIF ≠ Código, y el NIF de Odoo SÍ está vacío (nunca tuvo uno cargado) → se actualiza el contacto existente en vez de dar de baja.' },
-    { titulo: 'Regla 4a — Actualizar vía Metabase', texto: 'Billing.Código NO existe, Odoo ya existe, Metabase aprobado (Comandarina + approved) → actualiza NIF / Razón social / Situación con datos de Metabase.' },
-    { titulo: 'Regla 4b — Alta vía Metabase', texto: 'Billing.Código NO existe, Odoo no existe, Metabase aprobado → alta nueva con datos de Metabase.' },
-    { titulo: 'Regla 5 — Alta directa', texto: 'Billing.Código existe, Odoo no existe → alta nueva con datos de Billing (respeta si es CUIT o DNI).' },
-    { titulo: 'Regla 6 — Alta Consumidor Final', texto: 'Billing.Código NO existe, Metabase sin aprobado, Odoo no existe → alta como Consumidor Final sin NIF, tipo de identificación Sigd.' },
-    { titulo: 'Output 2 vs Output 3 — Tipo de Responsabilidad AFIP', texto: 'En el Output 2 (actualizaciones) la Responsabilidad AFIP refleja la situación fiscal real, mapeada de Billing/Metabase. En el Output 3 (altas nuevas) va siempre fija en "Consumidor Final", porque ARCA la actualiza sola después.' },
-    { titulo: 'Formato de entrada de Odoo', texto: 'Acepta .xlsx o .csv, formato viejo (headers en español) o nuevo (técnico, con External ID y Tipo de identificación adelante). El Tipo de identificación en Odoo viaja junto con el NIF en las reglas 3b/4a para evitar el error "Longitud inválida".' },
-    { titulo: 'Output 1 — Análisis completo', texto: 'Una fila por cada cuenta AR con la regla y acción aplicada. Sirve de backup/auditoría de cada corrida.' },
-    { titulo: 'Output 2 — Actualizar contactos en Odoo', texto: 'Incluye reglas 1b, 2, 2b, 3a (baja), 3b y 4a. Solo columna "External ID" (sin ID de base de datos) — al importar, mapear "External ID" al campo External ID para que actualice en vez de crear. Trae columna "Grupo" (qué regla aplicó) y "Comentario" (avisos a revisar antes de importar, ninguna se pisa).' },
-    { titulo: 'Output 3 — Alta de contactos en Odoo', texto: 'Incluye reglas 3a (alta), 4b, 5 y 6. Plantilla Comandarina, sin columna ID. Sub-casos: CUIT, DNI (con domicilio/ciudad), Sin datos (Sigd), 4b (Metabase), 3a-alta. Prioridad de mail: Billing.Email si existe, si no Admin (Dash). Trae columna "Comentario" con avisos a revisar antes de importar.' },
-    { titulo: 'Revisión manual por mail (Output 2 y 3)', texto: 'Si falta el mail de admin, o el mail tiene tildes, espacios de más, o formato inválido, esa cuenta NO se incluye en el Output 2/3 — queda afuera del archivo de importación. El banner de arriba muestra el detalle completo (cuenta + qué falta) directamente, para resolverlo a mano antes de la próxima corrida.' },
-    { titulo: 'Mapeo de situación fiscal (Dash/Metabase → Odoo)', texto: 'Responsable inscripto / responsable_inscripto → IVA Responsable Inscripto. Monotributo / monotributista → Responsable Monotributo. Consumidor final → Consumidor Final. Exento → IVA Sujeto Exento. (Solo aplica en Output 2, no en Output 3).' }
-  ];
+// ── GOOGLE SHEETS ─────────────────────────────────────────────
+const GS_URL = 'https://script.google.com/macros/s/AKfycbwBUbJgGq0EUOLVrFS5Q75FtBCeOatZ6qzSLFMxfCcfzJBP_Xo1dB-Kxkk5irwwKcHR/exec';
+let customRules = [];
 
-  const REGLAS_ETAPA2 = [
-    { titulo: 'Condición', texto: 'La Referencia existe en Odoo, Odoo.NIF (Código) tiene valor, y Billing.Código está vacío para esa cuenta en Dash → se arma la fila de import para Dash. No depende de qué regla de la Etapa 1 la generó (Metabase, carga manual, etc.), solo del estado final en Odoo vs Dash.' },
-    { titulo: 'Contactos excluidos', texto: 'Se ignoran los contactos Archivados en Odoo y las Referencias con sufijo "_old" (bajas de una corrida anterior de la Etapa 1) — no participan del cruce. Este filtro ya está aplicado siempre, aunque el número total resultante sea grande: representa el acumulado histórico de todas las correcciones hechas en Odoo que Dash todavía no tiene, no solo las de la última corrida.' },
-    { titulo: 'Cuentas internas (Fudo/Deli) — limitación', texto: 'La Etapa 2 no vuelve a chequear el Estado comercial ni el mail de admin (no carga esos archivos acá). Si una cuenta interna llegó a tener NIF cargado en Odoo antes de que existiera este chequeo, podría aparecer en el resultado — revisar manualmente si aparece algo sospechoso.' },
-    { titulo: 'Mapeo de campos (Odoo → Dash)', texto: 'ID = Referencia. Tipo de identificación = Odoo.Tipo de Identificación (ya sin el sufijo " (AR)"). Código = Odoo.NIF. Razón social = Odoo.Nombre. Ciudad = Odoo.Ciudad. Estado = Odoo.Provincia. Domicilio = Odoo.Calle. Código postal = Odoo.C.P. Email = Odoo.Correo electrónico.' },
-    { titulo: 'Mapeo de situación fiscal (Odoo → Dash)', texto: 'IVA Responsable Inscripto → Responsable inscripto. Responsable Monotributo → Monotributo. Consumidor Final → Consumidor final. IVA Sujeto Exento → Exento. (Es el mapeo inverso al de la Etapa 1).' },
-    { titulo: 'Todos los campos son obligatorios', texto: 'Dash exige los 9 campos del template (ID, Tipo de identificación, Código, Razón social, Ciudad, Estado, Domicilio, Situación ante el impuesto, Email, Código postal). Si a una cuenta le falta alguno, no entra al archivo de import: va al archivo de revisión.' },
-    { titulo: 'Dos archivos de salida', texto: 'Import a Dash: filas 100% completas, listas para subir (CSV separado por comas). Revisar antes de importar: filas con algún dato faltante, con cada campo vacío marcado puntualmente (ej. "FALTA CIUDAD") para completar a mano.' }
-  ];
+async function loadCustomRules() {
+  try {
+    const r = await fetch(GS_URL + '?action=get_custom');
+    const d = await r.json();
+    customRules = d.custom || [];
+    document.getElementById('rules-badge').textContent = '⚡ ' + customRules.length + ' reglas';
+  } catch(e) { console.warn('Reglas no disponibles', e); }
+}
 
-  // "Próximamente" ya no es una lista fija en el código: se carga en vivo desde el Google Sheet
-  // (ver cargarProximamente() más abajo), así se puede editar sin tocar el archivo.
+async function saveRule(patron, campo, concepto, pais, notas) {
+  try {
+    await fetch(GS_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({patron, campo, concepto, pais, notas})
+    });
+    await loadCustomRules();
+  } catch(e) { console.warn('No se guardó la regla', e); }
+}
 
-  // --- Descompresor DEFLATE propio (reemplaza pako), sin dependencias externas ---
-  function inflateRaw(input){
-    const LENGTH_BASE = [3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
-    const LENGTH_EXTRA = [0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
-    const DIST_BASE = [1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
-    const DIST_EXTRA = [0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
-    const CLC_ORDER = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
-    let bytePos = 0, bitBuf = 0, bitCount = 0;
-    function getBit(){ if(bitCount===0){ bitBuf = input[bytePos++]; bitCount = 8; } const b = bitBuf & 1; bitBuf >>= 1; bitCount--; return b; }
-    function getBits(n){ let v=0; for(let i=0;i<n;i++) v |= getBit() << i; return v; }
-    function alignByte(){ bitBuf=0; bitCount=0; }
-    function buildTree(lengths, num){
-      const counts = new Uint16Array(16);
-      const symbols = new Uint16Array(num);
-      for(let i=0;i<num;i++) counts[lengths[i]]++;
-      counts[0] = 0;
-      const offs = new Uint16Array(16);
-      for(let i=1;i<16;i++) offs[i] = offs[i-1] + counts[i-1];
-      for(let i=0;i<num;i++){ if(lengths[i]) symbols[offs[lengths[i]]++] = i; }
-      return { counts, symbols };
-    }
-    function decodeSymbol(tree){
-      let base=0, offs=0;
-      for(let len=1; len<=15; len++){
-        offs = 2*offs + getBit();
-        base += tree.counts[len];
-        offs -= tree.counts[len];
-        if(offs < 0) return tree.symbols[base+offs];
-      }
-      throw new Error('Huffman code invalido');
-    }
-    let out = new Uint8Array(Math.max(1024, input.length * 4));
-    let outPos = 0;
-    function ensure(n){
-      if(outPos + n > out.length){
-        let newLen = out.length * 2;
-        while(newLen < outPos + n) newLen *= 2;
-        const bigger = new Uint8Array(newLen);
-        bigger.set(out.subarray(0, outPos));
-        out = bigger;
-      }
-    }
-    function inflateStoredBlock(){
-      alignByte();
-      const len = input[bytePos] | (input[bytePos+1] << 8);
-      bytePos += 4;
-      ensure(len);
-      for(let i=0;i<len;i++) out[outPos++] = input[bytePos++];
-    }
-    function inflateBlockData(lt, dt){
-      for(;;){
-        const sym = decodeSymbol(lt);
-        if(sym === 256) return;
-        if(sym < 256){ ensure(1); out[outPos++] = sym; continue; }
-        const li = sym - 257;
-        const length = LENGTH_BASE[li] + getBits(LENGTH_EXTRA[li]);
-        const dsym = decodeSymbol(dt);
-        const dist = DIST_BASE[dsym] + getBits(DIST_EXTRA[dsym]);
-        ensure(length);
-        let from = outPos - dist;
-        for(let i=0;i<length;i++){ out[outPos++] = out[from++]; }
-      }
-    }
-    let fixedLt=null, fixedDt=null;
-    function getFixedTrees(){
-      if(fixedLt) return [fixedLt, fixedDt];
-      const litLengths = new Uint8Array(288);
-      for(let i=0;i<144;i++) litLengths[i]=8;
-      for(let i=144;i<256;i++) litLengths[i]=9;
-      for(let i=256;i<280;i++) litLengths[i]=7;
-      for(let i=280;i<288;i++) litLengths[i]=8;
-      fixedLt = buildTree(litLengths, 288);
-      const distLengths = new Uint8Array(30).fill(5);
-      fixedDt = buildTree(distLengths, 30);
-      return [fixedLt, fixedDt];
-    }
-    function inflateDynamicBlock(){
-      const hlit = getBits(5) + 257;
-      const hdist = getBits(5) + 1;
-      const hclen = getBits(4) + 4;
-      const clcLengths = new Uint8Array(19);
-      for(let i=0;i<hclen;i++) clcLengths[CLC_ORDER[i]] = getBits(3);
-      const clcTree = buildTree(clcLengths, 19);
-      const lengths = new Uint8Array(hlit + hdist);
-      let i=0;
-      while(i < hlit + hdist){
-        const sym = decodeSymbol(clcTree);
-        if(sym < 16){ lengths[i++] = sym; }
-        else if(sym === 16){ const rep=getBits(2)+3; const prev=lengths[i-1]; for(let r=0;r<rep;r++) lengths[i++]=prev; }
-        else if(sym === 17){ const rep=getBits(3)+3; for(let r=0;r<rep;r++) lengths[i++]=0; }
-        else { const rep=getBits(7)+11; for(let r=0;r<rep;r++) lengths[i++]=0; }
-      }
-      const lt = buildTree(lengths.subarray(0, hlit), hlit);
-      const dt = buildTree(lengths.subarray(hlit), hdist);
-      inflateBlockData(lt, dt);
-    }
-    for(;;){
-      const final = getBit();
-      const type = getBits(2);
-      if(type === 0) inflateStoredBlock();
-      else if(type === 1){ const [lt,dt] = getFixedTrees(); inflateBlockData(lt, dt); }
-      else if(type === 2) inflateDynamicBlock();
-      else throw new Error('Tipo de bloque invalido');
-      if(final) break;
-    }
-    return out.subarray(0, outPos);
-  }
+// ── STATE ─────────────────────────────────────────────────────
+let selectedOutput = null;
+let extractos = [], accFile = null, libFile = null, libData = null;
+let tdRows = [], unclassRows = [], allRows = [];
+let accountsMap = {};
+let fx = {ARS:null, CLP:null, MXN:null};
 
-  const state = { odoo:null, accounts:null, billing:null, metabase:null, admin:null };
+const IVA = {ARG:1.21, CHL:1.19, MEX:1.16};
+const CURRENCY = {ARG:'ARS', CHL:'CLP', MEX:'MXN'};
+const CONCEPT_LABELS = {
+  paid_online:'Paid online', suscripcion:'Paid offline', deuda_comisiones:'Paid offline',
+  saas:'SaaS', hardware:'Hardware Sales', smartpos:'Smartpos sales',
+  retiro_banco:'Retiro banco', fee_contable:'Fee contable', fee_dup:'Fee (dup)', payout:'Payouts'
+};
+const DETALLE_FACT = {
+  paid_online:'Por cobrar', suscripcion:'Por facturar', deuda_comisiones:'Por facturar',
+  hardware:'Consultar con venta de hardware', payout:'Retiro a banco'
+};
+const BADGE_CLASS = {
+  paid_online:'b-online', suscripcion:'b-offline', deuda_comisiones:'b-offline',
+  saas:'b-saas', hardware:'b-hw', smartpos:'b-smartpos',
+  retiro_banco:'b-payout', payout:'b-payout', fee_contable:'b-smartpos', fee_dup:'b-smartpos'
+};
 
-  function readZipEntries(arrayBuffer){
-    const buf = new Uint8Array(arrayBuffer);
-    const dv = new DataView(arrayBuffer);
-    let eocd = -1;
-    for(let i = buf.length - 22; i >= 0; i--){
-      if(buf[i]===0x50 && buf[i+1]===0x4b && buf[i+2]===0x05 && buf[i+3]===0x06){ eocd = i; break; }
-    }
-    if(eocd === -1) throw new Error('No se encontró el índice del zip (EOCD)');
-    const cdEntries = dv.getUint16(eocd + 10, true);
-    let offset = dv.getUint32(eocd + 16, true);
-    const entries = [];
-    for(let i=0; i<cdEntries; i++){
-      const sig = dv.getUint32(offset, true);
-      if(sig !== 0x02014b50) break;
-      const compressionMethod = dv.getUint16(offset + 10, true);
-      const compressedSize = dv.getUint32(offset + 20, true);
-      const uncompressedSize = dv.getUint32(offset + 24, true);
-      const fnLen = dv.getUint16(offset + 28, true);
-      const extraLen = dv.getUint16(offset + 30, true);
-      const commentLen = dv.getUint16(offset + 32, true);
-      const localHeaderOffset = dv.getUint32(offset + 42, true);
-      const name = new TextDecoder('utf-8').decode(buf.slice(offset + 46, offset + 46 + fnLen));
-      entries.push({name, compressionMethod, compressedSize, uncompressedSize, localHeaderOffset});
-      offset += 46 + fnLen + extraLen + commentLen;
-    }
-    return entries;
-  }
+// ── HELPERS ───────────────────────────────────────────────────
+function normStr(s) {
+  return String(s||'').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[\s\-_]/g,'');
+}
+const toNum = v => { try { return parseFloat(String(v).replace(',','.')) || 0; } catch { return 0; } };
 
-  function extractZipEntryText(arrayBuffer, entry){
-    const buf = new Uint8Array(arrayBuffer);
-    const dv = new DataView(arrayBuffer);
-    const lo = entry.localHeaderOffset;
-    const fnLen = dv.getUint16(lo + 26, true);
-    const extraLen = dv.getUint16(lo + 28, true);
-    const dataStart = lo + 30 + fnLen + extraLen;
-    const compressed = buf.slice(dataStart, dataStart + entry.compressedSize);
-    let out;
-    if(entry.compressionMethod === 0) out = compressed;
-    else if(entry.compressionMethod === 8) out = inflateRaw(compressed);
-    else throw new Error('Método de compresión no soportado (' + entry.compressionMethod + ')');
-    return new TextDecoder('utf-8').decode(out);
-  }
+const getDate = v => {
+  if(!v) return '';
+  let s;
+  if(v instanceof Date) s = v.toISOString().split('T')[0];
+  else s = String(v).split('T')[0].split(' ')[0];
+  // Convert yyyy-mm-dd to dd/mm/yyyy
+  const parts = s.split('-');
+  if(parts.length===3) return parts[2]+'/'+parts[1]+'/'+parts[0];
+  return s;
+};
+function addDaysToDateStr(dateStr, days) {
+  if(!dateStr) return '';
+  try {
+    // dateStr is dd/mm/yyyy
+    const parts = dateStr.split('/');
+    const d = new Date(parts[2]+'-'+parts[1]+'-'+parts[0]);
+    d.setDate(d.getDate() + days);
+    const nd = d.toISOString().split('T')[0].split('-');
+    return nd[2]+'/'+nd[1]+'/'+nd[0];
+  } catch(e) { return dateStr; }
+}
+const cleanDet = v => String(v||'').replace(/"""/g,'').replace(/^"|"$/g,'').trim();
+const fmtN = (n,d=2) => { const x=parseFloat(n); return isNaN(x)?'—':x.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d}); };
 
-  function setStatus(id, text, ok){
-    const el = document.getElementById(id);
-    el.textContent = text;
-    el.className = 'vc-status' + (ok ? ' ok' : '');
-  }
-  function checkReady(){
-    document.getElementById('btn-process').disabled = !(state.odoo && state.accounts && state.billing && state.metabase && state.admin);
-  }
+const TIPO_OP_MAP = {'pago aprobado':'SETTLEMENT','devolución de dinero':'REFUND','devolucion de dinero':'REFUND'};
+const MEDIO_MAP = {
+  'tarjeta de crédito':'credit_card','tarjeta de credito':'credit_card',
+  'tarjeta de débito':'debit_card','tarjeta de debito':'debit_card',
+  'transferencia bancaria':'bank_transfer','moneda digital':'digital_currency',
+  'cupón de pago':'coupon','cupon de pago':'coupon',
+};
+const normTipoOp = v => TIPO_OP_MAP[String(v||'').toLowerCase().trim()] || String(v||'').trim();
+const normMedio  = v => MEDIO_MAP[String(v||'').toLowerCase().trim()] || String(v||'').trim();
 
-  function normDigits(v){ return (v==null?'':String(v)).replace(/\D/g,''); }
-  function normEmail(v){ return (v==null?'':String(v)).trim().toLowerCase(); }
-  function normId(v){
-    if(v==null || v==='') return null;
-    const n = parseInt(String(v).trim(), 10);
-    return isNaN(n) ? null : String(n);
-  }
+// ── INIT ──────────────────────────────────────────────────────
+fetchFX(); loadCustomRules();
 
-  // --- Lector XLSX propio (zip + parser por regex, sin DOMParser: mucho mas rapido con archivos grandes
-  //     o con muchos hipervinculos, que generan decenas de miles de textos compartidos) ---
-  function colToIndex(ref){
-    const m = ref.match(/^[A-Z]+/);
-    const letters = m ? m[0] : 'A';
-    let idx = 0;
-    for(let i=0;i<letters.length;i++){ idx = idx*26 + (letters.charCodeAt(i)-64); }
-    return idx-1;
+async function fetchFX() {
+  try {
+    const d = await (await fetch('https://api.exchangerate-api.com/v4/latest/USD')).json();
+    fx.ARS=d.rates.ARS; fx.CLP=d.rates.CLP; fx.MXN=d.rates.MXN;
+    document.getElementById('tc-ars').textContent = fx.ARS?fx.ARS.toFixed(0):'—';
+    document.getElementById('tc-clp').textContent = fx.CLP?fx.CLP.toFixed(0):'—';
+    document.getElementById('tc-mxn').textContent = fx.MXN?fx.MXN.toFixed(2):'—';
+  } catch(e) {}
+}
+
+// ── STEPS ─────────────────────────────────────────────────────
+function setStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById('screen-'+i).classList.toggle('active',i===n);
+    const d=document.getElementById('step-'+i);
+    d.classList.remove('active','done');
+    if(i===n) d.classList.add('active'); else if(i<n) d.classList.add('done');
+  });
+}
+function goStep(n) {
+  if(n===2) {
+    document.getElementById('acc-section').style.display = 'block';
+    document.getElementById('step2-title').textContent = selectedOutput==='td'
+      ? 'Archivos · Resumen Tu Delivery'
+      : 'Archivos · Extracto de Mercado Pago';
+    var ls=document.getElementById('lib-section'); if(ls) ls.style.display=selectedOutput==='extracto'?'block':'none';
+    setTimeout(function(){ var pf=document.getElementById('periodo-desde'); if(pf){ pf.addEventListener('input',checkReady); document.getElementById('periodo-hasta').addEventListener('input',checkReady); document.getElementById('saldo-inicial').addEventListener('input',checkReady); } }, 100);
+    checkReady();
   }
-  function xmlUnescape(s){
-    // El &amp; se resuelve primero para poder manejar entidades doblemente escapadas
-    // (ej: "&amp;#209;" en vez de "&#209;", que a veces genera Excel al re-exportar).
-    return s
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
-      .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
-      .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)));
+  setStep(n);
+}
+function selectOutput(type) {
+  if(type==='dlocal') {
+    // Show dLocal directly, skip steps
+    document.getElementById('screen-1').classList.remove('active');
+    document.getElementById('screen-dlocal').classList.add('active');
+    [1,2,3].forEach(i => {
+      const d=document.getElementById('step-'+i);
+      d.classList.remove('active','done');
+    });
+    return;
   }
-  function parseSharedStrings(xmlText){
-    if(!xmlText) return [];
-    const arr = [];
-    const siRegex = /<si[^>]*>([\s\S]*?)<\/si>/g;
-    const tRegex = /<t[^>]*>([\s\S]*?)<\/t>/g;
-    let m;
-    while((m = siRegex.exec(xmlText))){
-      let text = '', tm;
-      tRegex.lastIndex = 0;
-      while((tm = tRegex.exec(m[1]))){ text += xmlUnescape(tm[1]); }
-      arr.push(text);
-    }
-    return arr;
+  selectedOutput=type;
+  ['td','extracto'].forEach(t => { const el=document.getElementById('card-'+t); if(el) el.classList.toggle('selected',t===type); });
+  document.getElementById('btn-next-1').disabled=false;
+}
+
+function closeDlocal() {
+  document.getElementById('screen-dlocal').classList.remove('active');
+  document.getElementById('screen-1').classList.add('active');
+  document.getElementById('step-1').classList.add('active');
+}
+
+// ── FILES ─────────────────────────────────────────────────────
+function onExtractoFile(e) {
+  const f=e.target.files[0]; if(!f) return;
+  const name=f.name.toUpperCase();
+  let country='ARG';
+  if(name.includes('MEX')||name.includes('_MX')) country='MEX';
+  else if(name.includes('CHL')||name.includes('_CL')||name.includes('MP_CL')) country='CHL';
+  extractos.push({file:f,country});
+  renderExtractos(); e.target.value=''; checkReady();
+}
+function renderExtractos() {
+  document.getElementById('extracto-list').innerHTML = extractos.map((e,i) => `
+    <div class="extracto-item">
+      <select class="ext-country-sel" onchange="extractos[${i}].country=this.value">
+        <option value="ARG" ${e.country==='ARG'?'selected':''}>ARG</option>
+        <option value="CHL" ${e.country==='CHL'?'selected':''}>CHL</option>
+        <option value="MEX" ${e.country==='MEX'?'selected':''}>MEX</option>
+      </select>
+      <span class="ext-name">${e.file.name}</span>
+      <button class="ext-remove" onclick="removeExt(${i})">✕</button>
+    </div>`).join('');
+}
+function removeExt(i) { extractos.splice(i,1); renderExtractos(); checkReady(); }
+function onDrag(e,id){ e.preventDefault(); document.getElementById(id).classList.add('over'); }
+function offDrag(id){ document.getElementById(id).classList.remove('over'); }
+function onDropAcc(e){ e.preventDefault(); offDrag('dz-acc'); loadAccFile(e.dataTransfer.files[0]); }
+function loadAcc(e){ loadAccFile(e.target.files[0]); }
+function loadAccFile(f) {
+  if(!f) return; accFile=f;
+  document.getElementById('dz-acc').classList.add('loaded');
+  document.getElementById('acc-name').textContent=f.name;
+  checkReady();
+}
+function onDropLib(e){ e.preventDefault(); offDrag('dz-lib'); loadLibFile(e.dataTransfer.files[0]); }
+function loadLib(e){ loadLibFile(e.target.files[0]); }
+function loadLibFile(f) {
+  if(!f) return; libFile=f;
+  document.getElementById('dz-lib').classList.add('loaded');
+  document.getElementById('lib-name').textContent=f.name;
+  checkReady();
+}
+function onSaldoManualChange() {
+  // If manual saldo entered, mark lib as satisfied
+  const manual = parseFloat(document.getElementById('saldo-final-manual').value) || 0;
+  if(manual > 0) {
+    document.getElementById('dz-lib').style.opacity = '0.5';
+  } else {
+    document.getElementById('dz-lib').style.opacity = '1';
   }
-  function parseSheetRows(xmlText, sharedStrings){
-    const rowRegex = /<row\b[^>]*>([\s\S]*?)<\/row>/g;
-    const cellRegex = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
-    const aoa = [];
-    let maxCol = 0;
-    let rm;
-    while((rm = rowRegex.exec(xmlText))){
-      const rowArr = [];
-      cellRegex.lastIndex = 0;
-      let cm, ci = 0;
-      while((cm = cellRegex.exec(rm[1]))){
-        const attrs = cm[1] || '';
-        const inner = cm[2] || '';
-        const refMatch = attrs.match(/r="([^"]+)"/);
-        const colIdx = refMatch ? colToIndex(refMatch[1]) : ci;
-        const typeMatch = attrs.match(/t="([^"]+)"/);
-        const t = typeMatch ? typeMatch[1] : null;
-        let value = '';
-        if(t === 'inlineStr'){
-          const isMatch = inner.match(/<is>([\s\S]*?)<\/is>/);
-          if(isMatch){
-            const tRe = /<t[^>]*>([\s\S]*?)<\/t>/g;
-            let tm, text = '';
-            while((tm = tRe.exec(isMatch[1]))){ text += xmlUnescape(tm[1]); }
-            value = text;
+  checkReady();
+}
+
+function checkReady() {
+  var hasExtractos = extractos.length > 0;
+  var hasAcc = !!accFile;
+  var libOk = true;
+  if(selectedOutput === 'extracto') {
+    var hasPeriodo = !!(document.getElementById('periodo-desde') &&
+                       document.getElementById('periodo-desde').value &&
+                       document.getElementById('periodo-hasta').value);
+    var hasSaldoInicial = !!(document.getElementById('saldo-inicial') &&
+                             document.getElementById('saldo-inicial').value);
+    var hasLib = !!libFile;
+    var manualEl = document.getElementById('saldo-final-manual');
+    var hasManual = !!(manualEl && parseFloat(manualEl.value) > 0);
+    // lib is satisfied if file uploaded OR manual saldo entered
+    libOk = hasPeriodo && hasSaldoInicial && (hasLib || hasManual);
+  }
+  document.getElementById('btn-process').disabled = !(hasExtractos && hasAcc && libOk);
+}
+
+// ── FILE READING ──────────────────────────────────────────────
+async function readFileAsRows(f) {
+  // CSV: read as text and parse manually
+  if(f.name.toLowerCase().endsWith('.csv')) {
+    return new Promise((res,rej) => {
+      const r = new FileReader();
+      r.onload = e => {
+        try {
+          const text = e.target.result;
+          const lines = text.split(/\r?\n/);
+          // Find header row: first line containing both 'ID' and 'Nombre'
+          let headerIdx = -1;
+          for(let i=0; i<lines.length; i++) {
+            const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g,''));
+            if(cols.includes('ID') && cols.includes('Nombre')) { headerIdx=i; break; }
           }
-        } else {
-          const vMatch = inner.match(/<v>([\s\S]*?)<\/v>/);
-          const raw = vMatch ? xmlUnescape(vMatch[1]) : '';
-          if(t === 's'){ const idx = parseInt(raw,10); value = sharedStrings[idx] !== undefined ? sharedStrings[idx] : ''; }
-          else if(t === 'str'){ value = raw; }
-          else if(t === 'b'){ value = raw === '1'; }
-          else if(raw === ''){ value = ''; }
-          else { const n = parseFloat(raw); value = isNaN(n) ? raw : n; }
-        }
-        rowArr[colIdx] = value;
-        if(colIdx > maxCol) maxCol = colIdx;
-        ci++;
-      }
-      aoa.push(rowArr);
-    }
-    if(!aoa.length) return [];
-    // Deduplicar headers repetidos (ej: dos columnas "ID"): la segunda pasa a llamarse "ID (2)".
-    const header = [];
-    const vistos = {};
-    for(let i=0;i<=maxCol;i++){
-      const raw = aoa[0][i] !== undefined ? String(aoa[0][i]) : '';
-      if(vistos[raw] === undefined){ vistos[raw] = 0; header.push(raw); }
-      else { vistos[raw]++; header.push(raw + ' (' + (vistos[raw]+1) + ')'); }
-    }
-    const out = [];
-    for(let r=1;r<aoa.length;r++){
-      const rowArr = aoa[r] || [];
-      const obj = {};
-      for(let i=0;i<=maxCol;i++){ obj[header[i]] = rowArr[i] !== undefined ? rowArr[i] : ''; }
-      out.push(obj);
-    }
-    return out;
-  }
-
-  async function readXlsx(file){
-    const buf = await file.arrayBuffer();
-    const entries = readZipEntries(buf);
-    const sheetEntries = entries.filter(e => /^xl\/worksheets\/sheet\d+\.xml$/i.test(e.name))
-      .sort((a,b) => parseInt(a.name.match(/sheet(\d+)\.xml/i)[1],10) - parseInt(b.name.match(/sheet(\d+)\.xml/i)[1],10));
-    const sheetEntry = sheetEntries[0];
-    if(!sheetEntry) throw new Error('No se encontró ninguna hoja dentro del Excel');
-    const sharedEntry = entries.find(e => /^xl\/sharedStrings\.xml$/i.test(e.name));
-    const sheetXml = extractZipEntryText(buf, sheetEntry);
-    const sharedXml = sharedEntry ? extractZipEntryText(buf, sharedEntry) : null;
-    const sharedStrings = parseSharedStrings(sharedXml);
-    return parseSheetRows(sheetXml, sharedStrings);
-  }
-
-  function readText(file){
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = e => resolve(e.target.result);
-      reader.onerror = reject;
-      reader.readAsText(file, 'utf-8');
-    });
-  }
-
-  function sliceFromHeader(text, mustContain){
-    const lines = text.split(/\r?\n/);
-    for(let i=0;i<lines.length;i++){
-      if(mustContain.every(k => lines[i].indexOf(k) !== -1)) return lines.slice(i).join('\n');
-    }
-    return text;
-  }
-
-  // --- Parser CSV propio (reemplaza PapaParse), soporta comillas, delimitador variable y saltos de linea embebidos ---
-  function detectDelimiter(text){
-    const firstLine = text.split(/\r?\n/, 1)[0] || '';
-    const semis = (firstLine.match(/;/g) || []).length;
-    const commas = (firstLine.match(/,/g) || []).length;
-    return semis > commas ? ';' : ',';
-  }
-  function parseCsvRows(text, delimiter){
-    delimiter = delimiter || ',';
-    const rows = [];
-    let i=0, field='', row=[], inQuotes=false;
-    const len = text.length;
-    function pushField(){ row.push(field); field=''; }
-    function pushRow(){ pushField(); rows.push(row); row=[]; }
-    while(i<len){
-      const c = text[i];
-      if(inQuotes){
-        if(c === '"'){
-          if(text[i+1] === '"'){ field+='"'; i+=2; continue; }
-          else { inQuotes=false; i++; continue; }
-        } else { field+=c; i++; continue; }
-      } else {
-        if(c === '"'){ inQuotes=true; i++; continue; }
-        if(c === delimiter){ pushField(); i++; continue; }
-        if(c === '\r'){ i++; continue; }
-        if(c === '\n'){ pushRow(); i++; continue; }
-        field+=c; i++; continue;
-      }
-    }
-    if(field.length>0 || row.length>0){ pushRow(); }
-    const nonEmpty = rows.filter(r => !(r.length===1 && r[0]===''));
-    if(!nonEmpty.length) return [];
-    const header = nonEmpty[0];
-    const out = [];
-    for(let r=1;r<nonEmpty.length;r++){
-      const rowArr = nonEmpty[r];
-      const obj = {};
-      for(let c=0;c<header.length;c++){ obj[header[c]] = rowArr[c] !== undefined ? rowArr[c] : ''; }
-      out.push(obj);
-    }
-    return out;
-  }
-
-  // Normaliza filas de Odoo a un esquema único, sin importar si vienen con headers
-  // en español (formato viejo) o con nombres técnicos + External ID (formato nuevo).
-  function findKeyCI(obj, name){
-    const target = name.toLowerCase();
-    for(const k in obj){ if(k.toLowerCase() === target) return obj[k]; }
-    return undefined;
-  }
-  // Varios campos de Odoo (Tipo de Identificación, Provincia) vienen con sufijo " (AR)" cuando
-  // el campo es un many2one con país asociado (ej: "CUIT (AR)", "Río Negro (AR)"). Se limpia acá.
-  function limpiarSufijoAR(texto){
-    return String(texto || '').replace(/\s*\(AR\)\s*$/i, '').trim();
-  }
-  function normalizeOdooRows(rows){
-    if(!rows.length) return rows;
-    const keys = Object.keys(rows[0]);
-    const esFormatoTecnico = keys.includes('ref') && keys.includes('vat');
-    // Nombre de columna del tipo de identificación actual en Odoo: puede venir con nombre tecnico
-    // (l10n_latam_identification_type_id) o en español ("Tipo de identificación"/"Tipo de Identificación",
-    // segun mayusculas del export), y a veces con sufijo " (AR)" (ej: "CUIT (AR)") que se limpia acá.
-    function tipoIdent(r){
-      const raw = findKeyCI(r, 'l10n_latam_identification_type_id') || findKeyCI(r, 'Tipo de identificación') || findKeyCI(r, 'TipoIdentificacion') || '';
-      return limpiarSufijoAR(raw);
-    }
-    if(!esFormatoTecnico){
-      // Formato viejo (headers en español). Si vino de CSV con "Estado", ya se mapeó Activo en readOdooCsv.
-      // Si el Excel traia dos columnas "ID" (Database ID + External ID), el lector las separo como "ID" y "ID (2)".
-      return rows.map(r => {
-        const externalDeDup = r['ID (2)'] !== undefined ? r['ID (2)'] : '';
-        return Object.assign({ ExternalID: externalDeDup, TipoIdentificacion: tipoIdent(r) }, r);
-      });
-    }
-    return rows.map(r => ({
-      ExternalID: r['.id'] || '',
-      ID: r['id'] || '',
-      Referencia: r['ref'] || '',
-      Nombre: r['name'] || '',
-      NIF: r['vat'] || '',
-      TipoIdentificacion: tipoIdent(r),
-      'Correo electrónico': r['email'] || '',
-      'Tipo de Responsabilidad AFIP': r['l10n_ar_afip_responsibility_type_id'] || '',
-      'Enlace a página web': r['website'] || '',
-      Activo: String(r['active'] || '').trim().toUpperCase() === 'VERDADERO'
-    }));
-  }
-
-  async function readOdooCsv(file){
-    const buf = await file.arrayBuffer();
-    let text = new TextDecoder('utf-8', {fatal:false}).decode(buf);
-    if(text.indexOf('\ufffd') !== -1){
-      text = new TextDecoder('windows-1252').decode(buf);
-    }
-    const delim = detectDelimiter(text);
-    const rows = parseCsvRows(text, delim);
-    rows.forEach(r => {
-      if(r['Estado'] !== undefined && r['Activo'] === undefined){
-        r['Activo'] = String(r['Estado']).trim().toUpperCase() === 'VERDADERO';
-      }
-    });
-    return normalizeOdooRows(rows);
-  }
-
-  document.getElementById('f-odoo').addEventListener('change', async e => {
-    const f = e.target.files[0]; if(!f) return;
-    try{
-      const esCsv = /\.csv$/i.test(f.name);
-      state.odoo = esCsv ? await readOdooCsv(f) : normalizeOdooRows(await readXlsx(f));
-      const tieneExternalId = state.odoo.length && !!state.odoo[0].ExternalID;
-      setStatus('s-odoo', state.odoo.length + ' filas cargadas' + (esCsv ? ' (CSV)' : ' (XLSX)') + (tieneExternalId ? ' · con External ID' : ' · sin External ID'), true);
-    }
-    catch(err){ setStatus('s-odoo', 'Error al leer archivo: ' + err.message, false); }
-    checkReady();
-  });
-
-  document.getElementById('f-dashzip').addEventListener('change', async e => {
-    const f = e.target.files[0]; if(!f) return;
-    try{
-      const buf = await f.arrayBuffer();
-      const entries = readZipEntries(buf);
-      const accEntry = entries.find(en => /accounts.*\.csv$/i.test(en.name));
-      const billEntry = entries.find(en => /billing.*\.csv$/i.test(en.name));
-      if(!accEntry || !billEntry){
-        const nombres = entries.map(en => en.name).join(', ');
-        setStatus('s-dashzip', 'No se encontró accounts_*.csv / billing_*.csv. Archivos en el zip: ' + nombres, false);
-        return;
-      }
-      const accRaw = extractZipEntryText(buf, accEntry);
-      const billRaw = extractZipEntryText(buf, billEntry);
-      const accSliced = sliceFromHeader(accRaw, ['ID','Nombre','País','Estado comercial']);
-      state.accounts = parseCsvRows(accSliced);
-      state.billing = parseCsvRows(billRaw);
-      setStatus('s-dashzip', 'Accounts: ' + state.accounts.length + ' filas · Billing: ' + state.billing.length + ' filas', true);
-    } catch(err){ setStatus('s-dashzip', 'Error al leer el zip: ' + err.message, false); }
-    checkReady();
-  });
-
-  document.getElementById('f-metabase').addEventListener('change', async e => {
-    const f = e.target.files[0]; if(!f) return;
-    try{ state.metabase = await readXlsx(f); setStatus('s-metabase', state.metabase.length + ' filas cargadas', true); }
-    catch(err){ setStatus('s-metabase', 'Error al leer archivo', false); }
-    checkReady();
-  });
-
-  document.getElementById('f-admin').addEventListener('change', async e => {
-    const f = e.target.files[0]; if(!f) return;
-    try{
-      const raw = await readText(f);
-      const sliced = sliceFromHeader(raw, ['ID Cuenta','Usuario','Email']);
-      state.admin = parseCsvRows(sliced);
-      setStatus('s-admin', state.admin.length + ' filas cargadas', true);
-    } catch(err){ setStatus('s-admin', 'Error al leer archivo', false); }
-    checkReady();
-  });
-
-  // --- Etapa 2 · Dash: estado y carga de archivos ---
-  const state2 = { odoo:null, billing:null };
-  function checkReady2(){
-    document.getElementById('btn-process-2').disabled = !(state2.odoo && state2.billing);
-  }
-
-  document.getElementById('f2-odoo').addEventListener('change', async e => {
-    const f = e.target.files[0]; if(!f) return;
-    try{
-      const esCsv = /\.csv$/i.test(f.name);
-      state2.odoo = esCsv ? await readOdooCsv(f) : normalizeOdooRows(await readXlsx(f));
-      setStatus('s2-odoo', state2.odoo.length + ' filas cargadas' + (esCsv ? ' (CSV)' : ' (XLSX)'), true);
-    } catch(err){ setStatus('s2-odoo', 'Error al leer archivo: ' + err.message, false); }
-    checkReady2();
-  });
-
-  document.getElementById('f2-dashzip').addEventListener('change', async e => {
-    const f = e.target.files[0]; if(!f) return;
-    try{
-      const buf = await f.arrayBuffer();
-      const entries = readZipEntries(buf);
-      const billEntry = entries.find(en => /billing.*\.csv$/i.test(en.name));
-      if(!billEntry){
-        const nombres = entries.map(en => en.name).join(', ');
-        setStatus('s2-dashzip', 'No se encontró billing_*.csv. Archivos en el zip: ' + nombres, false);
-        return;
-      }
-      state2.billing = parseCsvRows(extractZipEntryText(buf, billEntry));
-      setStatus('s2-dashzip', 'Billing: ' + state2.billing.length + ' filas', true);
-    } catch(err){ setStatus('s2-dashzip', 'Error al leer el zip: ' + err.message, false); }
-    checkReady2();
-  });
-
-  // --- Generador XLSX propio (sin librerías externas): zip "stored" + OOXML mínimo ---
-  function crc32(bytes){
-    if(!crc32.table){
-      const t = new Uint32Array(256);
-      for(let n=0;n<256;n++){
-        let c = n;
-        for(let k=0;k<8;k++){ c = (c&1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1); }
-        t[n] = c>>>0;
-      }
-      crc32.table = t;
-    }
-    let crc = 0xFFFFFFFF;
-    for(let i=0;i<bytes.length;i++){ crc = crc32.table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8); }
-    return (crc ^ 0xFFFFFFFF) >>> 0;
-  }
-
-  function buildZipStored(files){
-    const localParts = [], centralParts = [];
-    let offset = 0;
-    const now = new Date();
-    const dosTime = ((now.getHours()<<11)|(now.getMinutes()<<5)|((now.getSeconds()/2)|0)) & 0xFFFF;
-    const dosDate = (((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate()) & 0xFFFF;
-    files.forEach(file => {
-      const nameBytes = new TextEncoder().encode(file.name);
-      const data = file.data;
-      const crc = crc32(data);
-      const localHeader = new Uint8Array(30 + nameBytes.length);
-      const dv = new DataView(localHeader.buffer);
-      dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 0, true); dv.setUint16(8, 0, true);
-      dv.setUint16(10, dosTime, true); dv.setUint16(12, dosDate, true); dv.setUint32(14, crc, true);
-      dv.setUint32(18, data.length, true); dv.setUint32(22, data.length, true);
-      dv.setUint16(26, nameBytes.length, true); dv.setUint16(28, 0, true);
-      localHeader.set(nameBytes, 30);
-      localParts.push(localHeader, data);
-
-      const centralHeader = new Uint8Array(46 + nameBytes.length);
-      const cdv = new DataView(centralHeader.buffer);
-      cdv.setUint32(0, 0x02014b50, true); cdv.setUint16(4, 20, true); cdv.setUint16(6, 20, true); cdv.setUint16(8, 0, true); cdv.setUint16(10, 0, true);
-      cdv.setUint16(12, dosTime, true); cdv.setUint16(14, dosDate, true); cdv.setUint32(16, crc, true);
-      cdv.setUint32(20, data.length, true); cdv.setUint32(24, data.length, true);
-      cdv.setUint16(28, nameBytes.length, true); cdv.setUint16(30, 0, true); cdv.setUint16(32, 0, true);
-      cdv.setUint16(34, 0, true); cdv.setUint16(36, 0, true); cdv.setUint32(38, 0, true);
-      cdv.setUint32(42, offset, true);
-      centralHeader.set(nameBytes, 46);
-      centralParts.push(centralHeader);
-      offset += localHeader.length + data.length;
-    });
-    const centralStart = offset;
-    let centralSize = 0; centralParts.forEach(p => centralSize += p.length);
-    const eocd = new Uint8Array(22);
-    const edv = new DataView(eocd.buffer);
-    edv.setUint32(0, 0x06054b50, true); edv.setUint16(8, files.length, true); edv.setUint16(10, files.length, true);
-    edv.setUint32(12, centralSize, true); edv.setUint32(16, centralStart, true);
-    const out = new Uint8Array(offset + centralSize + 22);
-    let pos = 0;
-    localParts.forEach(p => { out.set(p, pos); pos += p.length; });
-    centralParts.forEach(p => { out.set(p, pos); pos += p.length; });
-    out.set(eocd, pos);
-    return out;
-  }
-
-  function colLetter(n){
-    let s = ''; n = n + 1;
-    while(n > 0){ const rem = (n - 1) % 26; s = String.fromCharCode(65 + rem) + s; n = Math.floor((n - 1) / 26); }
-    return s;
-  }
-  function xmlEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-  function buildXlsxBytes(rows, sheetName){
-    sheetName = (sheetName || 'Hoja1').replace(/[\\/?*\[\]:]/g,'').slice(0, 31) || 'Hoja1';
-    const cols = rows.length ? Object.keys(rows[0]) : ['Sin datos'];
-    let sheetRows = '<row r="1">' + cols.map((c,i) => '<c r="' + colLetter(i) + '1" t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(c) + '</t></is></c>').join('') + '</row>';
-    rows.forEach((r, ri) => {
-      const rn = ri + 2;
-      sheetRows += '<row r="' + rn + '">' + cols.map((c, ci) => {
-        const val = r[c] == null ? '' : String(r[c]);
-        return '<c r="' + colLetter(ci) + rn + '" t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(val) + '</t></is></c>';
-      }).join('') + '</row>';
-    });
-    const sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' + sheetRows + '</sheetData></worksheet>';
-    const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
-    const rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
-    const workbookXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + xmlEsc(sheetName) + '" sheetId="1" r:id="rId1"/></sheets></workbook>';
-    const workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
-    const stylesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>';
-    const enc = new TextEncoder();
-    const files = [
-      { name: '[Content_Types].xml', data: enc.encode(contentTypes) },
-      { name: '_rels/.rels', data: enc.encode(rootRels) },
-      { name: 'xl/workbook.xml', data: enc.encode(workbookXml) },
-      { name: 'xl/_rels/workbook.xml.rels', data: enc.encode(workbookRels) },
-      { name: 'xl/styles.xml', data: enc.encode(stylesXml) },
-      { name: 'xl/worksheets/sheet1.xml', data: enc.encode(sheetXml) }
-    ];
-    return buildZipStored(files);
-  }
-
-  function safeFileName(title){
-    return title.replace(/—/g,'-').replace(/[\/\\?%*:|"<>]/g,'').trim();
-  }
-
-  function toCsv(rows){
-    if(!rows || !rows.length) return '';
-    const cols = Object.keys(rows[0]);
-    const esc = v => { v = (v==null? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
-    const lines = [cols.join(',')];
-    rows.forEach(r => lines.push(cols.map(c => esc(r[c])).join(',')));
-    return lines.join('\n');
-  }
-
-  function fillTextarea(bucketName){
-    const ta = document.getElementById(bucketName + '_text');
-    if(ta && !ta.value){
-      const rows = window.__vcBuckets[bucketName];
-      ta.value = toCsv(rows);
-    }
-    return ta;
-  }
-
-  // Descarga como XLSX real (generado sin librerías externas). El nombre del archivo sale del título de la sección.
-  window.vcDownload = function(bucketName){
-    try{
-      const rows = window.__vcBuckets[bucketName];
-      const title = (window.__vcTitles && window.__vcTitles[bucketName]) || bucketName;
-      const fname = safeFileName(title) + '.xlsx';
-      const bytes = buildXlsxBytes(rows, title.replace(/^Output \d+\s*[-—]\s*/,''));
-      const blob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = fname; a.click();
-      URL.revokeObjectURL(url);
-    } catch(e){ /* si falla, el usuario tiene el botón "Copiar" y el texto seleccionable como respaldo */ }
-  };
-
-  // Copia al portapapeles como texto CSV (respaldo si la descarga del xlsx no funciona en el entorno).
-  window.vcCopy = function(bucketName, btn){
-    const ta = fillTextarea(bucketName);
-    const done = (ok) => { if(btn){ const orig = btn.textContent; btn.textContent = ok ? '¡Copiado!' : 'No se pudo copiar'; setTimeout(()=>{ btn.textContent = orig; }, 1800); } };
-    const csv = ta ? ta.value : toCsv(window.__vcBuckets[bucketName]);
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(csv).then(()=>done(true)).catch(()=>{
-        if(fallbackCopy(ta)) done(true); else done(false);
-      });
-    } else {
-      done(fallbackCopy(ta));
-    }
-  };
-
-  function fallbackCopy(ta){
-    try{
-      if(!ta) return false;
-      ta.style.position = 'static';
-      ta.focus(); ta.select();
-      const ok = document.execCommand('copy');
-      return ok;
-    } catch(e){ return false; }
-  }
-
-  window.vcToggle = function(id){
-    const el = document.getElementById(id);
-    el.classList.toggle('open');
-    if(el.classList.contains('open') && window.__vcBuckets && window.__vcBuckets[id]){
-      fillTextarea(id);
-    }
-  };
-
-  function renderTable(rows, limit){
-    if(!rows.length) return '<p style="font-size:12px;color:#9ca3af;">Sin registros.</p>';
-    const cols = Object.keys(rows[0]);
-    const shown = rows.slice(0, limit || 15);
-    let html = '<div class="vc-table-wrap"><table class="vc-t"><thead><tr>' + cols.map(c=>'<th>'+c+'</th>').join('') + '</tr></thead><tbody>';
-    shown.forEach(r => { html += '<tr>' + cols.map(c => '<td>' + (r[c]==null?'':String(r[c])) + '</td>').join('') + '</tr>'; });
-    html += '</tbody></table></div>';
-    if(rows.length > shown.length) html += '<p style="font-size:11px;color:#9ca3af;margin-top:6px;">Mostrando ' + shown.length + ' de ' + rows.length + '.</p>';
-    return html;
-  }
-
-  // Descarga como CSV real (Dash pide el archivo separado por comas, no xlsx).
-  window.vcDownloadCsv = function(bucketName){
-    try{
-      const rows = window.__vcBuckets[bucketName];
-      const title = (window.__vcTitles && window.__vcTitles[bucketName]) || bucketName;
-      const fname = safeFileName(title) + '.csv';
-      const csv = toCsv(rows);
-      const blob = new Blob(["\ufeff" + csv], {type:'text/csv;charset=utf-8;'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = fname; a.click();
-      URL.revokeObjectURL(url);
-    } catch(e){ /* si falla, el usuario tiene el botón "Copiar" y el texto seleccionable como respaldo */ }
-  };
-
-  function sectionCsv(id, title, rows, note, pillType, pillLabel){
-    window.__vcTitles = window.__vcTitles || {};
-    window.__vcTitles[id] = title;
-    const pill = pillType ? '<span class="vc-pill ' + pillType + '">' + pillLabel + '</span>' : '';
-    const disabled = rows.length ? '' : 'disabled';
-    return '<div class="vc-section"><div class="vc-section-head" onclick="vcToggle(\'' + id + '\')"><h3>' + title + pill + '</h3>' +
-      '<span>' +
-        '<button class="vc-btn ghost" onclick="event.stopPropagation(); vcDownloadCsv(\'' + id + '\')" ' + disabled + '>Descargar .csv</button> ' +
-        '<button class="vc-btn ghost" onclick="event.stopPropagation(); vcCopy(\'' + id + '\', this)" ' + disabled + '>Copiar CSV</button>' +
-      '</span></div>' +
-      '<div class="vc-section-body" id="' + id + '">' +
-        (note ? '<p class="vc-note">' + note + '</p>' : '') +
-        renderTable(rows) +
-        '<textarea id="' + id + '_text" readonly onclick="this.select()" placeholder="Si &quot;Descargar&quot; o &quot;Copiar&quot; no funcionan en tu entorno, hacé click acá, Ctrl+A y Ctrl+C para copiar el CSV manualmente." style="width:100%;min-height:110px;margin-top:10px;font-family:monospace;font-size:11px;padding:8px;border:1px solid var(--border);border-radius:8px;color:var(--texto);background:#fafafd;"></textarea>' +
-      '</div></div>';
-  }
-
-  function section(id, title, rows, note, pillType, pillLabel){
-    window.__vcTitles = window.__vcTitles || {};
-    window.__vcTitles[id] = title;
-    const pill = pillType ? '<span class="vc-pill ' + pillType + '">' + pillLabel + '</span>' : '';
-    const disabled = rows.length ? '' : 'disabled';
-    return '<div class="vc-section"><div class="vc-section-head" onclick="vcToggle(\'' + id + '\')"><h3>' + title + pill + '</h3>' +
-      '<span>' +
-        '<button class="vc-btn ghost" onclick="event.stopPropagation(); vcDownload(\'' + id + '\')" ' + disabled + '>Descargar .xlsx</button> ' +
-        '<button class="vc-btn ghost" onclick="event.stopPropagation(); vcCopy(\'' + id + '\', this)" ' + disabled + '>Copiar CSV</button>' +
-      '</span></div>' +
-      '<div class="vc-section-body" id="' + id + '">' +
-        (note ? '<p class="vc-note">' + note + '</p>' : '') +
-        renderTable(rows) +
-        '<textarea id="' + id + '_text" readonly onclick="this.select()" placeholder="Si &quot;Descargar&quot; o &quot;Copiar&quot; no funcionan en tu entorno, hacé click acá, Ctrl+A y Ctrl+C para copiar el CSV manualmente." style="width:100%;min-height:110px;margin-top:10px;font-family:monospace;font-size:11px;padding:8px;border:1px solid var(--border);border-radius:8px;color:var(--texto);background:#fafafd;"></textarea>' +
-      '</div></div>';
-  }
-
-  document.getElementById('btn-process').addEventListener('click', function(){
-    const log = document.getElementById('proc-log');
-    log.textContent = 'Procesando...';
-
-    const odooByRef = new Map();
-    state.odoo.forEach(r => {
-      const refRaw = String(r['Referencia'] || '').trim();
-      if(/_old$/i.test(refRaw)) return; // contacto ya dado de baja en una corrida anterior (Regla 3a) — no participa en el matcheo activo
-      const ref = normId(refRaw);
-      if(!ref) return;
-      if(!odooByRef.has(ref)) odooByRef.set(ref, []);
-      odooByRef.get(ref).push(r);
-    });
-
-    const billingByAcc = new Map();
-    state.billing.forEach(r => {
-      if((r['País']||'').trim() !== 'Argentina') return;
-      const id = normId(r['ID']);
-      if(id) billingByAcc.set(id, r);
-    });
-
-    const accountsAR = new Map();
-    state.accounts.forEach(r => {
-      if((r['País']||'').trim() !== 'Argentina') return;
-      const id = normId(r['ID']);
-      if(id) accountsAR.set(id, r);
-    });
-
-    const metaByAcc = new Map();
-    state.metabase.forEach(r => {
-      const cert = String(r['afip_settings_cert']||'').trim();
-      const st = String(r['afip_settings_state']||'').trim();
-      if(cert === 'Comandarina' && st === 'approved'){
-        const id = normId(r['account_id']);
-        if(id) metaByAcc.set(id, r);
-      }
-    });
-
-    const adminGroups = new Map();
-    state.admin.forEach(r => {
-      const id = normId(r['ID Cuenta']);
-      if(!id) return;
-      if(!adminGroups.has(id)) adminGroups.set(id, []);
-      adminGroups.get(id).push(r);
-    });
-    const adminBest = new Map();
-    adminGroups.forEach((list, id) => {
-      list.sort((a,b) => {
-        const la = parseInt(a['Logins']||'0',10), lb = parseInt(b['Logins']||'0',10);
-        if(lb !== la) return lb - la;
-        const da = new Date(a['Último login (UTC)']||0).getTime();
-        const db = new Date(b['Último login (UTC)']||0).getTime();
-        return db - da;
-      });
-      adminBest.set(id, list[0]);
-    });
-
-    function mapSituacion(raw){
-      if(!raw) return '';
-      const s = String(raw).trim().toLowerCase();
-      const map = {
-        'responsable inscripto': 'IVA Responsable Inscripto',
-        'responsable_inscripto': 'IVA Responsable Inscripto',
-        'monotributo': 'Responsable Monotributo',
-        'monotributista': 'Responsable Monotributo',
-        'consumidor final': 'Consumidor Final',
-        'exento': 'IVA Sujeto Exento'
+          if(headerIdx < 0) { rej(new Error('No encontré columnas ID y Nombre en el CSV')); return; }
+          const headers = lines[headerIdx].split(',').map(c => c.trim().replace(/^"|"$/g,''));
+          const rows = [];
+          for(let i=headerIdx+1; i<lines.length; i++) {
+            if(!lines[i].trim()) continue;
+            const vals = lines[i].split(',');
+            const obj = {};
+            headers.forEach((h,j) => { obj[h] = (vals[j]||'').trim().replace(/^"|"$/g,''); });
+            if(obj['ID'] && obj['ID'] !== 'ID') rows.push(obj);
+          }
+          res(rows);
+        } catch(err){ rej(err); }
       };
-      return map[s] || raw;
-    }
+      r.onerror = () => rej(new Error('No se pudo leer '+f.name));
+      r.readAsText(f, 'UTF-8');
+    });
+  }
+  // XLSX: use SheetJS
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload = e => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+        const sname = wb.SheetNames.find(s=>s.toLowerCase()==='procesado'||s.toLowerCase()==='sheet0') || wb.SheetNames[0];
+        res(XLSX.utils.sheet_to_json(wb.Sheets[sname],{defval:''}));
+      } catch(err){ rej(err); }
+    };
+    r.onerror = () => rej(new Error('No se pudo leer '+f.name));
+    r.readAsArrayBuffer(f);
+  });
+}
 
-    // Arma el comentario de revisión (no importar) según el estado del mail. Nunca pisa datos, solo anota.
-    function construirComentario(mail, huboIntentoAdmin){
-      const problemas = [];
-      const limpio = (mail || '').trim();
-      if(!limpio){
-        problemas.push(huboIntentoAdmin ? 'buscar mail admin' : 'mail vacío');
-        return problemas.join('; ');
+function buildAccountsMap(rows) {
+  const map = {};
+  rows.forEach(row => {
+    const nombre = String(row['Nombre']||'').trim();
+    const acc_id = String(row['ID']||'').trim();
+    if(!nombre || !acc_id || acc_id==='ID') return;
+    map[normStr(nombre)] = {id: acc_id, nombre};
+  });
+  console.log('Accounts cargadas:', Object.keys(map).length);
+  return map;
+}
+
+// ── CLASSIFY ─────────────────────────────────────────────────
+function applyCustomRules(numId, detalle, tipoOp, country) {
+  for(const rule of customRules) {
+    if(rule.pais && rule.pais!==country) continue;
+    const haystack = rule.campo==='num_id' ? numId : rule.campo==='tipo_op' ? tipoOp : detalle;
+    if(haystack.toLowerCase().includes(String(rule.patron||'').toLowerCase())) return rule.concepto;
+  }
+  return null;
+}
+
+function classifyRow(raw, country) {
+  const numId   = String(raw['NÚMERO DE IDENTIFICACIÓN']||'').trim();
+  const idOpMP  = String(raw['ID DE OPERACIÓN EN MERCADO PAGO']||'').trim();
+  const detalleRaw = String(raw['DETALLE DE LA VENTA']||'');
+  const detalle = cleanDet(detalleRaw);
+  const detLC   = detalle.toLowerCase();
+  const tipoOp  = normTipoOp(raw['TIPO DE OPERACIÓN']||'');
+  const moneda  = String(raw['MONEDA DE LA LIQUIDACIÓN']||raw['MONEDA']||'').trim();
+  const monto   = toNum(raw['VALOR DE LA COMPRA']);
+  const comis   = toNum(raw['COMISIONES + IVA']);
+  const imp     = toNum(raw['IMPUESTOS COBRADOS POR RETENCIONES DE IIBB']||0);
+  const fecha   = getDate(raw['FECHA DE APROBACIÓN']||raw['FECHA DE ORIGEN']||'');
+  const medio   = normMedio(raw['TIPO DE MEDIO DE PAGO']||raw['MEDIO DE PAGO']||'');
+
+  let concept=null, dashId='', nombre='', warning='', detalleFact='';
+
+  // 1. Custom rules first
+  const custom = applyCustomRules(numId, detalle, tipoOp, country);
+  if(custom) { concept=custom; }
+
+  // 2. Smartpos — TPF/TFP in numId or detalle
+  else if(
+    detLC.includes('terminal fudo') ||
+    detLC.includes('tpf:') || detLC.includes('tfp:') ||
+    detLC.includes('terminal:') || detLC.includes('link de pago') ||
+    numId.toLowerCase().includes('tfp:') || numId.toLowerCase().includes('tpf:')
+  ){
+    concept='smartpos';
+    // Extract ID from NUM_ID or detalle: TFP:369680:... or TPF:369680:...
+    const srcStr = (numId && (numId.toLowerCase().includes('tfp:') || numId.toLowerCase().includes('tpf:'))) ? numId : detalle;
+    let m = srcStr.match(/(?:TFP|TPF):(\d+):/i);
+    if(m) dashId=m[1];
+    // Extract nombre from last segment after last ':'
+    const lastColon = srcStr.lastIndexOf(':');
+    if(lastColon >= 0) nombre = srcStr.substring(lastColon+1).trim();
+    // Detalle for billing
+    if(detLC.includes('terminal fudo')) detalleFact=numId;
+    else detalleFact=detalle;
+  }
+
+  // 3. Hardware by country
+  else if(
+    detLC.includes('fudohardwarearg') || detLC.includes('fudohardwaremx') ||
+    detLC.includes('hardwarefudochile') || detLC.includes('hardware #') ||
+    (String(raw['Tipo']||'').trim()==='Venta de Hardware')
+  ){
+    concept='hardware'; dashId='Sin identificar';
+    detalleFact='Consultar con venta de hardware';
+  }
+
+  // 4. Paid online — FUDO- prefix, no hardware
+  else if(numId.startsWith('FUDO-')) {
+    if(detLC.includes('hardware')){ concept='hardware'; dashId='Sin identificar'; detalleFact='Consultar con venta de hardware'; }
+    else {
+      concept='paid_online';
+      dashId = numId.split('-')[1]||'';
+      // Lookup nombre
+      const accEntry = Object.values(accountsMap).find(a => String(a.id)===String(dashId));
+      if(accEntry) nombre=accEntry.nombre;
+      detalleFact='Por cobrar';
+    }
+  }
+
+  // 5. Paid offline
+  else if(
+    numId.includes('@') ||
+    detLC.includes('suscripción tu delivery') || detLC.includes('suscripcion tu delivery') ||
+    detLC.includes('deuda por comisiones') || detLC.includes('deuda de comisiones')
+  ){
+    if(detLC.includes('suscripción tu delivery')||detLC.includes('suscripcion tu delivery')){
+      concept='suscripcion';
+      dashId = numId.includes('::')?numId.split('::')[0]:numId;
+      detalleFact='Por facturar';
+    } else if(detLC.includes('deuda por comisiones')||detLC.includes('deuda de comisiones')){
+      concept='deuda_comisiones';
+      if(numId.includes('@')){
+        const afterAt = normStr(numId.split('@')[1]);
+        const accEntry = accountsMap[afterAt];
+        if(accEntry){ dashId=accEntry.id; nombre=accEntry.nombre; }
+        else warning='Sin match: '+numId.split('@')[1];
       }
-      if(mail !== limpio) problemas.push('mail con espacios extra');
-      if(/[áéíóúÁÉÍÓÚüÜñÑ]/.test(limpio)) problemas.push('mail con tildes');
-      if(/\s/.test(limpio)) problemas.push('mail con espacios internos');
-      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpio)) problemas.push('formato de mail inválido');
-      return problemas.join('; ');
+      detalleFact='Por facturar';
+    }
+  }
+
+  // 6. SaaS
+  else if(String(raw['Tipo']||'').trim()==='SaaS') { concept='saas'; }
+
+  // 7. Payouts
+  else if(tipoOp==='PAYOUTS'||String(raw['Tipo']||'').includes('PAYOUTS')){
+    concept='payout'; dashId='Payout - Validar cuenta'; detalleFact='Retiro a banco';
+  }
+
+  // 8. Fee contable
+  else if(numId.includes('MELIPAYMENTS')) concept='fee_contable';
+  else if(numId.includes('::fee_payment')) concept='fee_dup';
+
+  // Fecha de liberacion
+  let fechaLib = fecha;
+  if(concept==='paid_online') {
+    fechaLib = country==='MEX' ? addDaysToDateStr(fecha,12) : addDaysToDateStr(fecha,10);
+  }
+
+  return {concept,dashId,nombre,warning,detalleFact,fechaLib,
+    numId,idOpMP,tipoOp,medio,moneda,monto,comis,imp,fecha,detalle,country,_raw:raw};
+}
+
+// ── PROCESS ───────────────────────────────────────────────────
+function setProgress(p,label) {
+  document.getElementById('progress-wrap').style.display='block';
+  document.getElementById('progress-fill').style.width=p+'%';
+  if(label) document.getElementById('progress-label').textContent=label;
+}
+
+async function process() {
+  document.getElementById('btn-process').disabled=true;
+  document.getElementById('btn-process').textContent='Procesando...';
+  setProgress(5,'Cargando tipo de cambio...');
+  await fetchFX();
+  setProgress(10,'Cargando reglas...');
+  await loadCustomRules();
+  setProgress(15,'Cargando accounts...');
+  try {
+    accountsMap={}; libData=null;
+    if(accFile){
+      const rows = await readFileAsRows(accFile);
+      accountsMap = buildAccountsMap(rows);
+    }
+    if(selectedOutput==='extracto'){
+      // Get periodo and saldo inicial
+      var periodoDesde = document.getElementById('periodo-desde').value;
+      var periodoHasta = document.getElementById('periodo-hasta').value;
+      var saldoInicialVal = parseFloat(document.getElementById('saldo-inicial').value) || 0;
+
+      if(libFile){
+        try {
+          var libRows = await readFileAsRows(libFile);
+          var totalRow = libRows.find(function(r){ return String(r['RECORD_TYPE']||'').toLowerCase()==='total'; });
+          var totalIdx = libRows.indexOf(totalRow);
+          if(totalRow && totalIdx > 0){
+            var prevRow = libRows[totalIdx-1];
+            var sf = parseFloat(String(totalRow['NET_CREDIT_AMOUNT']||'0').replace(',','.')) || 0;
+            var fd = String(prevRow['RELEASE_DATE']||'').split('T')[0];
+            var fp = fd.split('-'); var ffmt = fp.length===3 ? fp[2]+'/'+fp[1]+'/'+fp[0] : fd;
+            libData = {saldoFinal: sf, fecha: ffmt, periodoDesde: periodoDesde, periodoHasta: periodoHasta, saldoInicial: saldoInicialVal};
+          }
+        } catch(e){ console.warn('Error liberaciones:', e); }
+      } else {
+        // Use manual saldo
+        var manual = parseFloat(document.getElementById('saldo-final-manual').value) || 0;
+        if(manual > 0) {
+          libData = {saldoFinal: manual, fecha: periodoHasta.split('-').reverse().join('/'), periodoDesde: periodoDesde, periodoHasta: periodoHasta, saldoInicial: saldoInicialVal};
+        }
+      }
+    }
+    setProgress(20,'Leyendo extractos...');
+    tdRows=[]; unclassRows=[]; allRows=[];
+    for(let i=0;i<extractos.length;i++){
+      const {file,country}=extractos[i];
+      const rows = await readFileAsRows(file);
+      rows.forEach(raw => {
+        const c = classifyRow(raw, country);
+        allRows.push(c);
+        if(c.concept==='paid_online'||c.concept==='suscripcion'||c.concept==='deuda_comisiones') tdRows.push(c);
+        if(c.concept===null) unclassRows.push(c);
+      });
+      setProgress(20+(i+1)/extractos.length*70,'Clasificando '+country+'...');
+    }
+    setProgress(95,'Armando resultado...');
+    renderResults();
+    goStep(3);
+    setProgress(100,'✓ Listo');
+    setTimeout(()=>document.getElementById('progress-wrap').style.display='none',800);
+  } catch(err){ alert('Error: '+err.message); }
+  document.getElementById('btn-process').disabled=false;
+  document.getElementById('btn-process').textContent='⚡ Procesar';
+}
+
+// ── RENDER ────────────────────────────────────────────────────
+function renderResults() {
+
+  // Identificados = rows with dashId, excluding payouts
+  const excluidos = allRows.filter(r=>r.concept==='payout'||r.concept==='fee_dup'||r.concept==='fee_contable');
+  const elegibles = allRows.filter(r=>r.concept!=='payout'&&r.concept!=='fee_dup'&&r.concept!=='fee_contable');
+  const identificados = elegibles.filter(r=>r.dashId&&r.dashId!=='Sin identificar').length;
+  const noIdentificados = elegibles.filter(r=>!r.dashId||r.dashId==='Sin identificar').length + unclassRows.length;
+
+  document.getElementById('info-pills').innerHTML=`
+    <div class="info-pill">Total procesados <span>${allRows.length.toLocaleString('es-AR')}</span></div>
+    <div class="info-pill">Identificados <span>${identificados.toLocaleString('es-AR')}</span></div>
+    <div class="info-pill" style="${noIdentificados>0?'color:var(--red)':''}">No identificados <span>${noIdentificados.toLocaleString('es-AR')}</span></div>
+  `;
+  let html='';
+  if(selectedOutput==='td'){
+    html += renderResumenTD();
+    html += renderPreviewTable(tdRows,'Vista previa · Tu Delivery');
+  } else {
+    html += renderPreviewTable(allRows,'Extracto procesado completo');
+  }
+  document.getElementById('result-content').innerHTML=html;
+  renderUnclassified();
+  if(selectedOutput==='extracto' && libData){
+    var cc = document.getElementById('conciliacion-card');
+    if(cc) cc.remove();
+    var card = document.createElement('div');
+    card.id='conciliacion-card'; card.className='card'; card.style.marginTop='1rem';
+    card.innerHTML =
+      '<div class="card-title">Conciliacion de saldos</div>' +
+      '<div style="padding:10px 14px;background:var(--bg2);border-radius:8px;font-family:var(--mono);font-size:12px;margin-bottom:1rem">' +
+      'Período: <strong>' + (libData.periodoDesde||'—') + ' → ' + (libData.periodoHasta||'—') + '</strong>' +
+      '<span style="margin-left:16px">Saldo inicial: <strong>' + fmtN(libData.saldoInicial||0) + '</strong></span>' +
+      '</div>' +
+      '<div style="margin-bottom:1rem;padding:10px 14px;background:var(--bg2);border-radius:8px;font-family:var(--mono);font-size:12px;color:var(--text2)">' +
+        'Saldo final MP: <strong style="color:var(--text)">' + fmtN(libData.saldoFinal) + '</strong>' +
+        '<span style="margin-left:12px">Fecha: <strong style="color:var(--text)">' + libData.fecha + '</strong></span>' +
+      '</div>' +
+      '<button class="btn-primary" style="max-width:200px" onclick="calcularConciliacion()">Calcular</button>' +
+      '<div id="conciliacion-resultado" style="margin-top:1rem"></div>';
+    var uc = document.getElementById('unclass-card');
+    if(uc) uc.parentNode.insertBefore(card, uc);
+    else document.getElementById('result-content').appendChild(card);
+    calcularConciliacion();
+  }
+}
+
+function renderResumenTD(){
+  const countries=[...new Set(tdRows.map(r=>r.country))];
+  const cbClass={ARG:'cb-ARG',CHL:'cb-CHL',MEX:'cb-MEX'};
+  let html='<div class="card"><div class="card-title">Resumen por país</div>';
+  countries.forEach(pais=>{
+    const rows=tdRows.filter(r=>r.country===pais);
+    const moneda=CURRENCY[pais], ivaDiv=IVA[pais], fxRate=fx[moneda];
+    const byTipo={};
+    rows.forEach(r=>{
+      const tipo=CONCEPT_LABELS[r.concept]||r.concept;
+      if(!byTipo[tipo])byTipo[tipo]={monto:0,comis:0,imp:0};
+      byTipo[tipo].monto+=r.monto; byTipo[tipo].comis+=r.comis; byTipo[tipo].imp+=r.imp;
+    });
+    const totM=rows.reduce((s,r)=>s+r.monto,0);
+    const totC=rows.reduce((s,r)=>s+r.comis,0);
+    const totI=rows.reduce((s,r)=>s+r.imp,0);
+    const totT=totM+totC+totI, totS=totT/ivaDiv, totU=fxRate?totS/fxRate:null;
+    html+=`<div class="country-block"><div class="country-header">
+      <span class="country-badge ${cbClass[pais]}">${pais}</span>
+      <span class="mono-label">${moneda}</span>
+      ${fxRate?`<span class="tc-info">TC: 1 USD = ${fmtN(fxRate,2)} ${moneda}</span>`:''}
+    </div>
+    <table class="pivot"><thead><tr>
+      <th>Tipo</th><th class="num">Importe c/IVA</th><th class="num">Comisión</th>
+      <th class="num">Otros imp.</th><th class="num">Total c/IVA</th>
+      <th class="num">Total s/IVA (${Math.round((ivaDiv-1)*100)}%)</th><th class="num">Total USD</th>
+    </tr></thead><tbody>`;
+    Object.entries(byTipo).forEach(([tipo,d])=>{
+      const tot=d.monto+d.comis+d.imp, sin=tot/ivaDiv, usd=fxRate?sin/fxRate:null;
+      const bClass=tipo==='Paid online'?'b-online':'b-offline';
+      html+=`<tr>
+        <td><span class="badge ${bClass}">${tipo}</span></td>
+        <td class="num">${fmtN(d.monto)}</td>
+        <td class="num ${d.comis<0?'neg':''}">${d.comis!==0?fmtN(d.comis):'—'}</td>
+        <td class="num ${d.imp<0?'neg':''}">${d.imp!==0?fmtN(d.imp):'—'}</td>
+        <td class="num">${fmtN(tot)}</td><td class="num">${fmtN(sin)}</td>
+        <td class="num">${usd?fmtN(usd):'—'}</td>
+      </tr>`;
+    });
+    html+=`<tr class="total-row">
+      <td><strong>Total ${pais}</strong></td>
+      <td class="num">${fmtN(totM)}</td>
+      <td class="num ${totC<0?'neg':''}">${totC!==0?fmtN(totC):'—'}</td>
+      <td class="num ${totI<0?'neg':''}">${totI!==0?fmtN(totI):'—'}</td>
+      <td class="num"><strong>${fmtN(totT)}</strong></td>
+      <td class="num pos"><strong>${fmtN(totS)}</strong></td>
+      <td class="num pos"><strong>${totU?fmtN(totU):'—'}</strong></td>
+    </tr></tbody></table></div>`;
+  });
+  html+='</div>';
+  return html;
+}
+
+function renderPreviewTable(rows, title){
+  const limited=rows.slice(0,200);
+  const more=rows.length>200?`<tr><td colspan="9" style="text-align:center;padding:10px;color:var(--text3);font-style:italic">Mostrando 200 de ${rows.length.toLocaleString('es-AR')} — el Excel tiene todas</td></tr>`:'';
+  return `<div class="card"><div class="card-title">${title}</div>
+    <div class="table-wrap"><table class="data">
+      <thead><tr>
+        <th>Type</th><th>ID</th><th>Nombre</th><th>Fecha</th><th>OP MP</th>
+        <th>Moneda</th><th class="num">Importe</th><th class="num">Comisión</th><th>Detalle</th>
+      </tr></thead>
+      <tbody>${limited.map(r=>`
+        <tr>
+          <td><span class="badge ${BADGE_CLASS[r.concept]||''}">${CONCEPT_LABELS[r.concept]||r.concept||'—'}</span></td>
+          <td style="font-family:var(--mono)">${r.dashId||'—'}</td>
+          <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${r.nombre||'—'}</td>
+          <td>${r.fecha}</td>
+          <td style="font-size:10px;color:var(--text3)">${r.idOpMP}</td>
+          <td>${r.moneda}</td>
+          <td class="num">${fmtN(r.monto)}</td>
+          <td class="num ${r.comis<0?'neg':''}">${r.comis!==0?fmtN(r.comis):'—'}</td>
+          <td style="font-size:11px;color:var(--text3)">${r.detalleFact||'—'}</td>
+        </tr>`).join('')}${more}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderUnclassified(){
+  const card=document.getElementById('unclass-card');
+  const list=document.getElementById('unclass-list');
+  const relevant = selectedOutput==='td'
+    ? unclassRows.filter(r=>r.numId.startsWith('FUDO-')||r.numId.includes('@'))
+    : unclassRows;
+  if(!relevant.length){ card.style.display='none'; return; }
+  card.style.display='block';
+  list.innerHTML=relevant.map((r,i)=>`
+    <div class="unclass-item" id="ui-${i}">
+      <div class="unclass-field"><strong>${r.numId||'—'}</strong>Número ID</div>
+      <div class="unclass-field"><strong>${r.detalle||'—'}</strong>Detalle</div>
+      <div class="unclass-field"><strong>${r.tipoOp||'—'} · ${r.moneda} ${fmtN(r.monto)}</strong>Op · Monto</div>
+      <div class="unclass-assign">
+        <select class="unclass-select" id="us-${i}">
+          <option value="">— asignar —</option>
+          <option value="paid_online">Paid online</option>
+          <option value="suscripcion">Paid offline Suscripción</option>
+          <option value="deuda_comisiones">Paid offline Deuda</option>
+          <option value="saas">SaaS</option>
+          <option value="hardware">Hardware Sales</option>
+          <option value="smartpos">Smartpos sales</option>
+          <option value="payout">Payouts</option>
+          <option value="fee_contable">Fee contable</option>
+          <option value="ignorar">Ignorar</option>
+        </select>
+        <button class="unclass-save-btn" onclick="assignUnclass(${i})">Guardar</button>
+      </div>
+    </div>`).join('');
+}
+
+async function assignUnclass(i){
+  const sel=document.getElementById('us-'+i).value;
+  if(!sel) return;
+  const r=unclassRows[i];
+  const patron=r.numId||r.detalle.substring(0,50);
+  const campo=r.numId?'num_id':'detalle';
+  await saveRule(patron,campo,sel,r.country,r.detalle);
+  document.getElementById('ui-'+i).classList.add('resolved');
+  document.getElementById('ui-'+i).querySelector('.unclass-assign').innerHTML=
+    `<span class="unclass-saved">✓ Guardado como ${CONCEPT_LABELS[sel]||sel}</span>`;
+}
+
+function calcularConciliacion() {
+  if(!libData) return;
+  var si  = libData.saldoInicial || 0;
+  var desde = libData.periodoDesde;
+  var hasta  = libData.periodoHasta;
+
+  function parseFechaLocal(f){
+    var p=f.split('/'); return p.length===3 ? new Date(p[2]+'-'+p[1]+'-'+p[0]) : new Date(f);
+  }
+  var desdeD = desde ? new Date(desde) : null;
+  var hastaD = hasta ? new Date(hasta) : null;
+  if(hastaD) hastaD.setHours(23,59,59);
+
+  function enPer(fechaLib){
+    if(!desdeD||!hastaD||!fechaLib) return true;
+    var d=parseFechaLocal(fechaLib); return d>=desdeD && d<=hastaD;
+  }
+
+  // Extracto = todos menos paid online, filtrado por fecha liberacion en periodo
+  var extractoRows = allRows.filter(function(r){
+    return r.concept !== 'paid_online' && enPer(r.fechaLib||r.fecha);
+  });
+  var sumExtracto = extractoRows.reduce(function(s,r){ return s+r.monto+r.comis; }, 0);
+  var saldoTeorico2 = si + sumExtracto;
+
+  // Paid online NO liberado = cuya fecha de liberacion es MAYOR a fecha hasta del periodo
+  // Estos ya estan en Odoo pero MP aun no los libero → hay que restarlos
+  var sumPONoLiberado = allRows.filter(function(r){
+    if(r.concept !== 'paid_online' || !r.fechaLib) return false;
+    var dLib = parseFechaLocal(r.fechaLib);
+    return hastaD && dLib > hastaD;
+  }).reduce(function(s,r){ return s+r.monto+r.comis; }, 0);
+
+  var teorico = saldoTeorico2 - sumPONoLiberado;
+  var diff    = libData.saldoFinal ? teorico - libData.saldoFinal : null;
+  var ok      = diff !== null && Math.abs(diff) < 0.02;
+  var okC     = ok ? 'var(--green)' : 'var(--red)';
+  var okBg    = ok ? 'var(--green-bg)' : 'var(--red-bg)';
+  var okBd    = ok ? 'var(--green-bd)' : 'rgba(226,75,74,.25)';
+
+  document.getElementById('conciliacion-resultado').innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1rem">' +
+      '<div style="background:var(--bg2);border-radius:8px;padding:12px 14px">' +
+        '<div style="font-size:10px;color:var(--text2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Saldo inicial Odoo</div>' +
+        '<div style="font-size:18px;font-weight:500;font-family:var(--mono)">' + fmtN(si) + '</div>' +
+      '</div>' +
+      '<div style="background:var(--bg2);border-radius:8px;padding:12px 14px">' +
+        '<div style="font-size:10px;color:var(--text2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Extractos (sin paid online)</div>' +
+        '<div style="font-size:18px;font-weight:500;font-family:var(--mono)">' + fmtN(sumExtracto) + '</div>' +
+      '</div>' +
+      '<div style="background:var(--bg2);border-radius:8px;padding:12px 14px">' +
+        '<div style="font-size:10px;color:var(--text2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">- Paid online no liberado</div>' +
+        '<div style="font-size:18px;font-weight:500;font-family:var(--mono);color:var(--red)">' + fmtN(sumPONoLiberado) + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
+      '<div style="padding:16px;border-radius:10px;background:var(--navy-bg);border:0.5px solid rgba(57,56,160,.2)">' +
+        '<div style="font-size:11px;font-family:var(--mono);color:var(--navy);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Saldo final teorico</div>' +
+        '<div style="font-size:24px;font-weight:600;font-family:var(--mono);color:var(--navy)">' + fmtN(teorico) + '</div>' +
+      '</div>' +
+      '<div style="padding:16px;border-radius:10px;background:'+okBg+';border:0.5px solid '+okBd+'">' +
+        '<div style="font-size:11px;font-family:var(--mono);color:'+okC+';text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">' + (ok?'✅ Conciliado':'⚠ Diferencia') + '</div>' +
+        '<div style="font-size:24px;font-weight:600;font-family:var(--mono);color:'+okC+'">' + (ok?fmtN(libData.saldoFinal):fmtN(Math.abs(diff))) + '</div>' +
+        (ok?'':'<div style="font-size:11px;font-family:var(--mono);margin-top:4px;color:var(--red)">Saldo MP: '+fmtN(libData.saldoFinal)+'</div>') +
+      '</div>' +
+    '</div>';
+}
+
+// ── EXPORT ────────────────────────────────────────────────────
+function exportExcel(){
+  var wb = XLSX.utils.book_new();
+  var fecha = new Date().toISOString().split('T')[0];
+  var isTD = selectedOutput==='td';
+
+  if(isTD){
+    // ── RESUMEN TU DELIVERY ──
+    var dataTD = tdRows.map(function(r){ return {
+      'TIPO DE DEUDA': (r.concept==='suscripcion'||r.concept==='deuda_comisiones')?'PAID_OFFLINE':'PAID_ONLINE',
+      'ID DE DASH': r.dashId||'',
+      'FECHA DE PAGO': r.fecha,
+      'OP MP': r.idOpMP,
+      'MEDIO DE PAGO': r.medio,
+      'ESTADO': r.tipoOp,
+      'MONEDA': r.moneda,
+      'IMPORTE LC C/IVA': r.monto,
+      'COMISION C/IVA': r.comis,
+      'OTROS IMPUESTOS': r.imp,
+    };});
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataTD.length?dataTD:[{}]), 'Tu delivery');
+
+    // Resumen por pais
+    var resRows=[];
+    var countries=[...new Set(tdRows.map(function(r){return r.country;}))];
+    countries.forEach(function(pais){
+      var pRows=tdRows.filter(function(r){return r.country===pais;});
+      var ivaDiv=IVA[pais], fxRate=fx[CURRENCY[pais]], moneda=CURRENCY[pais];
+      var byTipo={};
+      pRows.forEach(function(r){
+        var tipo=(r.concept==='suscripcion'||r.concept==='deuda_comisiones')?'PAID_OFFLINE':'PAID_ONLINE';
+        if(!byTipo[tipo])byTipo[tipo]={monto:0,comis:0,imp:0,count:0};
+        byTipo[tipo].monto+=r.monto;byTipo[tipo].comis+=r.comis;byTipo[tipo].imp+=r.imp;byTipo[tipo].count++;
+      });
+      var tipos = Object.keys(byTipo);
+      tipos.forEach(function(tipo){
+        var d=byTipo[tipo];
+        var tot=d.monto+d.comis+d.imp, sin=tot/ivaDiv;
+        var row = {'PAIS':pais,'MONEDA':moneda,'TIPO':tipo,'MOV':d.count,
+          'IMPORTE C/IVA':d.monto,'COMISION':d.comis,'OTROS IMP.':d.imp,'TOTAL C/IVA':tot};
+        row['TOTAL S/IVA ('+Math.round((ivaDiv-1)*100)+'%)'] = sin;
+        row['TOTAL USD'] = fxRate?sin/fxRate:'';
+        row['TC USD'] = fxRate||'';
+        row['FECHA TC'] = fecha;
+        resRows.push(row);
+      });
+      resRows.push({});
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resRows.length?resRows:[{}]), 'Resumen');
+
+    // No clasificados
+    var allCols2=[]; var seen2=new Set();
+    unclassRows.forEach(function(r){Object.keys(r._raw).forEach(function(k){if(!seen2.has(k)&&!k.startsWith('_')){seen2.add(k);allCols2.push(k);}});});
+    var unc2=unclassRows.map(function(r){var o={'PAIS':r.country};allCols2.forEach(function(k){o[k]=r._raw[k]||'';});return o;});
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(unc2.length?unc2:[{nota:'Sin no clasificados'}]), 'No clasificados');
+
+    XLSX.writeFile(wb, 'Resumen tu delivery_'+fecha+'.xlsx');
+
+  } else {
+    // ── EXTRACTO DE MERCADO PAGO — 5 hojas ──
+
+    // Parse periodo
+    var periodoDesde = libData ? libData.periodoDesde : '';
+    var periodoHasta = libData ? libData.periodoHasta : '';
+
+    function parseFechaLocal(f){
+      if(!f) return null;
+      var p=f.split('/');
+      if(p.length===3) return new Date(p[2]+'-'+p[1]+'-'+p[0]);
+      return new Date(f);
+    }
+    function parseFechaISO(f){
+      if(!f) return null;
+      return new Date(f);
     }
 
-    // Fila de alta para Output 3: mismos campos siempre, cambia el origen del dato segun el caso.
-    function buildAltaRow(opts){
+    var desdeD = periodoDesde ? parseFechaISO(periodoDesde) : null;
+    var hastaD = periodoHasta ? parseFechaISO(periodoHasta) : null;
+    if(hastaD) hastaD.setHours(23,59,59);
+
+    function enPeriodo(fechaLib){
+      if(!desdeD || !hastaD || !fechaLib) return true; // no filter if no period
+      var d = parseFechaLocal(fechaLib);
+      return d >= desdeD && d <= hastaD;
+    }
+
+    // Map row to output format
+    function toOutputRow(r){
       return {
-        Nombre: opts.nombre || '',
-        'Tipo de compañía': 'Compañía',
-        'Nombre de la calle': opts.domicilio || '',
-        Idioma: 'Spanish / Español',
-        Ciudad: opts.ciudad || '',
-        País: 'Argentina',
-        'Tipo de identificación': opts.tipoIdent || '',
-        NIF: opts.nif || '',
-        'Tipo de Responsabilidad AFIP': 'Consumidor Final',
-        'Correo electrónico': opts.mail || '',
-        Referencia: opts.referencia,
-        Compañía: 'COMANDARINA S.R.L.',
-        'Enlace a página web': opts.enlace,
-        'Grupo (no importar)': opts.grupo,
-        'Comentario (no importar)': construirComentario(opts.mail, !!opts.huboIntentoAdmin)
+        'FECHA DE APROBACION': r.fecha,
+        'FECHA DE LIBERACION': r.fechaLib||r.fecha,
+        'NUMERO DE IDENTIFICACION': r.numId||'',
+        'ID DE OPERACION EN MERCADO PAGO': r.idOpMP,
+        'TIPO DE OPERACION': r.tipoOp,
+        'MONEDA': r.moneda,
+        'VALOR DE LA COMPRA': r.monto,
+        'COMISIONES + IVA': r.comis,
+        'DETALLE DE LA VENTA': r.detalle||'',
+        'Type': (r.concept==='suscripcion'||r.concept==='deuda_comisiones')?'Paid offline':(CONCEPT_LABELS[r.concept]||r.concept||''),
+        'ID': r.dashId||'',
+        'Nombre': r.nombre||'',
+        'Detalle': r.detalleFact||'',
       };
     }
 
-    const r1_ok=[], r1b_reactivar=[], r2_mail=[], r2b_nombre=[], r3a_baja=[], r3a_alta_pend=[], r3b_update=[], r4a_update=[], r4b_alta=[], r5_alta=[], r6_alta_cf=[], excepciones=[], cuentasInternas=[];
-    const output1=[]; let output2=[], output3=[];
-    const OUT2_COLS = ['External ID','Referencia','Nombre','NIF','Tipo de identificación','Correo electrónico','Tipo de Responsabilidad AFIP','Enlace a página web','Activo','Grupo (no importar)'];
-    const OUT3_COLS = ['Nombre','Tipo de compañía','Nombre de la calle','Idioma','Ciudad','País','Tipo de identificación','NIF','Tipo de Responsabilidad AFIP','Correo electrónico','Referencia','Compañía','Enlace a página web','Grupo (no importar)'];
-    const DOMINIOS_INTERNOS = /@(fu\.do|deli\.com\.br)$/i;
-    // Referencias (ID de Dash) que NUNCA se marcan como cuenta interna, aunque cumplan el criterio de
-    // dominio + Estado comercial Activo — son casos revisados a mano y confirmados como cuentas reales.
-    const EXCEPCIONES_CUENTA_INTERNA = new Set(['154948']); // tienda_cholita — confirmada como cuenta activa real
+    // Hoja 1: output — todos los movimientos
+    var dataOutput = allRows.map(toOutputRow);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataOutput.length?dataOutput:[{}]), 'output');
 
-    accountsAR.forEach((accRow, id) => {
-      const billing = billingByAcc.get(id);
-      const odooList = odooByRef.get(id);
-      const enlaceDash = 'https://dash.fu.do/accounts/' + id;
-      const billingRow = billing || {};
-      const admin = adminBest.get(id);
-      const mailAdmin = admin ? admin['Email'] : '';
+    // Hoja 2: Paid online — solo paid online
+    var dataPO = allRows.filter(function(r){return r.concept==='paid_online';}).map(toOutputRow);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataPO.length?dataPO:[{}]), 'Paid online');
 
-      // Cuenta interna (equipo Fudo/Deli usando su propia cuenta comercial activa) — se excluye
-      // por completo del análisis, no se crea ni se actualiza en ningún lado.
-      const esComercialActiva = String(accRow['Estado comercial']||'').trim().toLowerCase() === 'activo';
-      if(esComercialActiva && DOMINIOS_INTERNOS.test(String(mailAdmin||'').trim()) && !EXCEPCIONES_CUENTA_INTERNA.has(id)){
-        cuentasInternas.push({ referencia:id, nombre:accRow['Nombre'], mail_admin:mailAdmin, link:enlaceDash });
-        return;
-      }
-
-      const log1 = (regla, accion, detalle) => output1.push({
-        Referencia:id, Nombre:accRow['Nombre'],
-        CUIT_Billing: billingRow['Código'] || '', RazonSocial_Billing: billingRow['Razón social'] || '',
-        Situacion_Billing: billingRow['Situación ante el impuesto'] || '', Email_Billing: billingRow['Email'] || '',
-        Regla: regla, Accion: accion, Detalle: detalle || ''
-      });
-
-      if(odooList && odooList.length > 1){
-        excepciones.push({referencia:id, motivo:'Referencia duplicada en Odoo ('+odooList.length+' contactos)', ids_odoo: odooList.map(o=>o['ID']).join(' / ')});
-        log1('Excepción', 'Revisión manual', 'Referencia duplicada en Odoo');
-        return;
-      }
-      const odoo = (odooList && odooList.length === 1) ? odooList[0] : null;
-      const cuitDash = billing ? normDigits(billing['Código']) : '';
-      const billingTieneCodigo = !!cuitDash;
-
-      if(billingTieneCodigo){
-        // --- Billing manda ---
-        if(!odoo){
-          const tipoIdent = billing['Tipo de identificación'] || 'CUIT';
-          const esDni = String(tipoIdent).trim().toUpperCase() === 'DNI';
-          const mailUsado = billing['Email'] || mailAdmin;
-          const row = buildAltaRow({
-            nombre: billing['Razón social'], tipoIdent, nif: billing['Código'],
-            domicilio: esDni ? billing['Domicilio'] : '', ciudad: esDni ? billing['Ciudad'] : '',
-            mail: mailUsado, huboIntentoAdmin: !billing['Email'], referencia: id, enlace: enlaceDash,
-            grupo: esDni ? 'DNI' : 'CUIT'
-          });
-          r5_alta.push(row); output3.push(row);
-          log1('5', 'Crear contacto', 'Alta directa con datos de Billing (' + (esDni ? 'DNI' : 'CUIT') + ')');
-          return;
-        }
-        const nifOdoo = normDigits(odoo['NIF']);
-        const mailOdoo = normEmail(odoo['Correo electrónico']);
-        const mailDash = normEmail(billing['Email']);
-        if(nifOdoo === cuitDash){
-          const estabaArchivado = odoo['Activo'] === false;
-          if(mailOdoo === mailDash){
-            if(estabaArchivado){
-              const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:odoo['Nombre'], NIF:odoo['NIF'], 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':odoo['Correo electrónico'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Reactivar', 'Comentario (no importar)':construirComentario(odoo['Correo electrónico'], false)};
-              r1b_reactivar.push(row); output2.push(row);
-              log1('1b', 'Reactivar contacto', 'Datos coinciden con Billing pero el contacto está archivado en Odoo — desarchivar');
-            } else {
-              r1_ok.push({referencia:id, id_odoo:odoo['ID'], razon_social:odoo['Nombre']});
-              log1('1', 'Sin acción', 'Validado OK');
-            }
-          } else {
-            const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:odoo['Nombre'], NIF:odoo['NIF'], 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':billing['Email'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Actualizar mail', 'Comentario (no importar)':construirComentario(billing['Email'], false)};
-            r2_mail.push(row); output2.push(row);
-            log1('2', 'Actualizar mail', 'Mail actualizado en Odoo' + (estabaArchivado ? ' (además estaba archivado, se reactiva)' : ''));
-          }
-        } else if(nifOdoo){
-          const enlaceOrig = odoo['Enlace a página web'] || enlaceDash;
-          const bajaRow = {'External ID':odoo['ExternalID']||'', Referencia:id+'_old', Nombre:odoo['Nombre'], NIF:odoo['NIF'], 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':odoo['Correo electrónico'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':enlaceOrig+'_old', Activo:'FALSE', 'Grupo (no importar)':'Baja', 'Comentario (no importar)':''};
-          const tipoIdentAlta = billing['Tipo de identificación'] || 'CUIT';
-          const esDniAlta = String(tipoIdentAlta).trim().toUpperCase() === 'DNI';
-          const mailUsadoAlta = billing['Email'] || mailAdmin;
-          const altaRow = buildAltaRow({
-            nombre: billing['Razón social'], tipoIdent: tipoIdentAlta, nif: billing['Código'],
-            domicilio: esDniAlta ? billing['Domicilio'] : '', ciudad: esDniAlta ? billing['Ciudad'] : '',
-            mail: mailUsadoAlta, huboIntentoAdmin: !billing['Email'], referencia: id, enlace: enlaceDash, grupo: '3a - alta'
-          });
-          r3a_baja.push(bajaRow); output2.push(bajaRow);
-          r3a_alta_pend.push(altaRow); output3.push(altaRow);
-          log1('3a', 'Baja + Alta', 'NIF distinto de otra razón social');
-        } else {
-          const estabaArchivado = odoo['Activo'] === false;
-          const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:billing['Razón social'], NIF:billing['Código'], 'Tipo de identificación':billing['Tipo de identificación']||'CUIT', 'Correo electrónico':billing['Email'], 'Tipo de Responsabilidad AFIP':mapSituacion(billing['Situación ante el impuesto']), 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Actualizar — NIF vacío', 'Comentario (no importar)':construirComentario(billing['Email'], false)};
-          r3b_update.push(row); output2.push(row);
-          log1('3b', 'Actualizar contacto', 'NIF de Odoo estaba vacío, se completa con Billing' + (estabaArchivado ? ' (además estaba archivado, se reactiva)' : ''));
-        }
-      } else {
-        // --- Billing sin datos: Metabase como respaldo ---
-        const meta = metaByAcc.get(id);
-        if(meta){
-          if(odoo){
-            const estabaArchivado = odoo['Activo'] === false;
-            const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:meta['afip_settings_social_name'], NIF:meta['afip_settings_cuit'], 'Tipo de identificación':'CUIT', 'Correo electrónico':mailAdmin, 'Tipo de Responsabilidad AFIP':mapSituacion(meta['afip_settings_issuer_iva_condition']), 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Actualizar vía Metabase', 'Comentario (no importar)':construirComentario(mailAdmin, true)};
-            r4a_update.push(row); output2.push(row);
-            log1('4a', 'Actualizar contacto (Metabase)', 'Sin billing, actualizado con Metabase' + (estabaArchivado ? ' (además estaba archivado, se reactiva)' : ''));
-          } else {
-            const row = buildAltaRow({
-              nombre: meta['afip_settings_social_name'], tipoIdent: 'CUIT', nif: meta['afip_settings_cuit'],
-              mail: mailAdmin, huboIntentoAdmin: true, referencia: id, enlace: enlaceDash, grupo: '4b (Metabase)'
-            });
-            r4b_alta.push(row); output3.push(row);
-            log1('4b', 'Crear contacto (Metabase)', 'Sin billing, alta con Metabase');
-          }
-        } else if(odoo){
-          // Sin billing ni Metabase: no hay fuente fiscal para actualizar, pero el nombre de Dash SI puede
-          // haber cambiado (Odoo no esta validado contra ARCA en este caso) -> si difiere, se actualiza el nombre.
-          const nombreDash = String(accRow['Nombre'] || '').trim();
-          const nombreOdoo = String(odoo['Nombre'] || '').trim();
-          if(nombreDash && nombreDash !== nombreOdoo){
-            const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:nombreDash, NIF:odoo['NIF']||'', 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':odoo['Correo electrónico'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Actualizar nombre', 'Comentario (no importar)':construirComentario(odoo['Correo electrónico'], false)};
-            r2b_nombre.push(row); output2.push(row);
-            log1('2b', 'Actualizar nombre', 'Nombre de cuenta cambió en Dash, sin datos fiscales para validar el resto');
-          } else {
-            r1_ok.push({referencia:id, id_odoo:odoo['ID'], razon_social:odoo['Nombre'], nota:'Consumidor Final sin datos fiscales en Dash'});
-            log1('Aprobado', 'Sin acción', 'Consumidor Final ya cargado, sin datos fiscales en Dash ni Metabase');
-          }
-        } else {
-          const row = buildAltaRow({
-            nombre: accRow['Nombre'], tipoIdent: 'Sigd', nif: '',
-            mail: mailAdmin, huboIntentoAdmin: true, referencia: id, enlace: enlaceDash, grupo: 'Sin datos (Sigd)'
-          });
-          r6_alta_cf.push(row); output3.push(row);
-          log1('6', 'Crear contacto (Consumidor Final)', 'Sin billing ni Metabase, alta como Consumidor Final');
-        }
-      }
-    });
-
-    // Las filas que necesitan revisión (mail faltante o con formato inválido) se sacan de los
-    // outputs de importación y se muestran directo en el banner de alerta, con el detalle completo.
-    const revisionesPendientes = [];
-    function extraerRevisiones(rows, origen){
-      const limpias = [];
-      rows.forEach(r => {
-        const comentario = r['Comentario (no importar)'];
-        if(comentario){
-          revisionesPendientes.push({ Origen: origen, Referencia: r['Referencia'], Nombre: r['Nombre'], Comentario: comentario });
-        } else {
-          const copia = Object.assign({}, r);
-          delete copia['Comentario (no importar)'];
-          limpias.push(copia);
-        }
-      });
-      return limpias;
-    }
-    output2 = extraerRevisiones(output2, 'Output 2');
-    output3 = extraerRevisiones(output3, 'Output 3');
-
-    window.__vcBuckets = {
-      output1, output2, output3,
-      r1_ok, r1b_reactivar, r2_mail, r2b_nombre, r3a_baja, r3a_alta_pend, r3b_update, r4a_update, r4b_alta, r5_alta, r6_alta_cf, excepciones, cuentasInternas
-    };
-
-    const totalAR = accountsAR.size;
-    const summary = document.getElementById('results');
-    summary.style.display = 'block';
-    const cuentasActualizar = r2_mail.length + r2b_nombre.length + r3b_update.length + r4a_update.length;
-    const cuentasCrear = r4b_alta.length + r5_alta.length + r6_alta_cf.length;
-    const bannerRevision = revisionesPendientes.length > 0
-      ? '<div class="vc-note" style="background:#fef9c3;color:#854d0e;border-radius:8px;padding:10px 14px;margin:0 0 10px;font-weight:600;">⚠️ ' + revisionesPendientes.length + ' cuenta' + (revisionesPendientes.length===1?'':'s') + ' necesita' + (revisionesPendientes.length===1?'':'n') + ' revisión manual antes de importar — no está' + (revisionesPendientes.length===1?'':'n') + ' incluida' + (revisionesPendientes.length===1?'':'s') + ' en los outputs:' +
-          '<ul style="margin:8px 0 0;padding-left:18px;font-weight:400;">' +
-            revisionesPendientes.map(r => '<li>[' + r.Origen + '] <strong>' + (r.Nombre || r.Referencia) + '</strong> (Ref. ' + r.Referencia + '): ' + r.Comentario + '</li>').join('') +
-          '</ul></div>'
-      : '';
-    const bannerInternas = cuentasInternas.length > 0
-      ? '<div class="vc-note" style="background:#e0e7ff;color:#3730a3;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-weight:600;">🏢 ' + cuentasInternas.length + ' cuenta' + (cuentasInternas.length===1?'':'s') + ' interna' + (cuentasInternas.length===1?'':'s') + ' detectada' + (cuentasInternas.length===1?'':'s') + ' (mail @fu.do / @deli.com.br, Estado comercial Activo) — excluida' + (cuentasInternas.length===1?'':'s') + ' del análisis, no se crea ni se modifica en Odoo. La modificación de su estado en Dash se hace aparte, fuera de esta herramienta.<ul style="margin:8px 0 0;padding-left:18px;font-weight:400;">' +
-          cuentasInternas.map(c => '<li>Cuenta interna detectada: <strong>' + (c.nombre||c.referencia) + '</strong> — <a href="' + c.link + '" target="_blank" style="color:#3730a3;">' + c.link + '</a></li>').join('') +
-        '</ul></div>'
-      : '';
-    const banner = bannerRevision + bannerInternas;
-    summary.innerHTML =
-      banner +
-      '<div class="vc-summary">' +
-        '<div class="vc-metric" style="background:var(--naranja);"><span class="n" style="color:#fff;">' + totalAR + '</span><span class="l" style="color:#fff;">Cuentas AR (Dash)</span></div>' +
-        '<div class="vc-metric"><span class="n" style="color:#15803d;">' + r1_ok.length + '</span><span class="l">OK, sin acción</span></div>' +
-        '<div class="vc-metric"><span class="n" style="color:#0e7490;">' + r1b_reactivar.length + '</span><span class="l">Reactivar (estaba archivado)</span></div>' +
-        '<div class="vc-metric"><span class="n" style="color:#854d0e;">' + cuentasActualizar + '</span><span class="l">A actualizar (mismo contacto)</span></div>' +
-        '<div class="vc-metric"><span class="n" style="color:#b45309;">' + r3a_baja.length + '</span><span class="l">Baja + Alta (reemplazo)</span></div>' +
-        '<div class="vc-metric"><span class="n" style="color:#7e22ce;">' + cuentasCrear + '</span><span class="l">A crear (contacto nuevo)</span></div>' +
-        '<div class="vc-metric"><span class="n" style="color:#991b1b;">' + excepciones.length + '</span><span class="l">Excepciones</span></div>' +
-      '</div>' +
-      '<p class="vc-note" style="margin:-6px 0 16px;">Verificación: ' + r1_ok.length + ' + ' + r1b_reactivar.length + ' + ' + cuentasActualizar + ' + ' + r3a_baja.length + ' + ' + cuentasCrear + ' + ' + excepciones.length + ' + ' + cuentasInternas.length + ' = ' + (r1_ok.length + r1b_reactivar.length + cuentasActualizar + r3a_baja.length + cuentasCrear + excepciones.length + cuentasInternas.length) + ' (debería ser igual a ' + totalAR + ', el último término son las cuentas internas excluidas). Nota: cada cuenta de "Baja + Alta" genera 2 filas de salida (una en Output 2, una en Output 3), por eso no se suma directo a esos totales. "Reactivar" también entra en el Output 2 (usa Activo=TRUE, resto de los datos sin cambios).</p>' +
-      section('output1', 'Output 1 — Análisis completo (backup)', output1, 'Una fila por cada cuenta AR de Dash, con la regla y acción aplicada. Guardalo como respaldo de cada corrida.', 'paid', 'Backup') +
-      section('output2', 'Output 2 — Actualizar contactos existentes en Odoo', output2, 'Incluye reglas 1b (reactivar), 2, 2b (nombre), 3a (baja), 3b y 4a. Al importar en Odoo, mapeá la columna "External ID" al campo External ID para que actualice el contacto en vez de crear uno nuevo. La columna "Tipo de identificación" viaja junto con el NIF en las reglas 3b y 4a para evitar el error de "longitud inválida" en Odoo. Las cuentas que necesitan revisión manual (mail faltante o inválido) NO están acá — mirá el banner de arriba. Las cuentas de la regla 3a aportan 1 fila acá (la baja) y otra fila más en el Output 3 (la alta) — por eso ' + output2.length + ' filas no equivale a ' + output2.length + ' cuentas distintas.', 'pending', 'Actualizar') +
-      section('output3', 'Output 3 — Alta de contactos nuevos en Odoo', output3, 'Incluye reglas 3a (alta), 4b, 5 y 6. Sin columna ID: Odoo los va a crear como contactos nuevos. Las cuentas que necesitan revisión manual (mail faltante o inválido) NO están acá — mirá el banner de arriba. Las ' + r3a_alta_pend.length + ' filas de la regla 3a acá son la contraparte de las bajas del Output 2 (mismo cuenta, contacto nuevo).', 'refunded', 'Alta') +
-      section('excepciones', 'Excepciones (Referencia duplicada en Odoo, etc.)', excepciones, 'Quedan fuera de los outputs 2 y 3 — requieren revisión manual.', 'cancelled', 'Excepción');
-
-    log.textContent = 'Listo — ' + totalAR + ' cuentas AR procesadas.';
-  });
-
-  // --- Etapa 2 · Dash: importar contactos que Odoo ya tiene pero Dash todavía no ---
-  function mapSituacionInversa(raw){
-    if(!raw) return '';
-    const s = String(raw).trim().toLowerCase();
-    const map = {
-      'iva responsable inscripto': 'Responsable inscripto',
-      'responsable monotributo': 'Monotributo',
-      'consumidor final': 'Consumidor final',
-      'iva sujeto exento': 'Exento'
-    };
-    return map[s] || raw;
-  }
-
-  document.getElementById('btn-process-2').addEventListener('click', function(){
-    const log2 = document.getElementById('proc-log-2');
-    log2.textContent = 'Procesando...';
-
-    const billingByAcc2 = new Map();
-    state2.billing.forEach(r => {
-      if((r['País']||'').trim() !== 'Argentina') return;
-      const id = normId(r['ID']);
-      if(id) billingByAcc2.set(id, r);
-    });
-
-    const odooByRef2 = new Map();
-    state2.odoo.forEach(r => {
-      const refRaw = String(r['Referencia'] || '').trim();
-      if(/_old$/i.test(refRaw)) return;
-      if(r['Activo'] === false) return;
-      const ref = normId(refRaw);
-      if(!ref) return;
-      if(!odooByRef2.has(ref)) odooByRef2.set(ref, r); // si hay duplicados, se queda con el primero
-    });
-
-    const CAMPOS_DASH = ['ID','Tipo de identificación','Código','Razón social','Ciudad','Estado','Domicilio','Situación ante el impuesto','Email','Código postal'];
-    const completos = [], incompletos = [];
-
-    odooByRef2.forEach((odoo, id) => {
-      const nif = String(odoo['NIF'] || '').trim();
-      if(!nif) return; // sin NIF en Odoo, no hay nada para pasar a Dash
-
-      const billing = billingByAcc2.get(id);
-      const billingTieneCodigo = billing && String(billing['Código'] || '').trim();
-      if(billingTieneCodigo) return; // Dash ya tiene el dato, no hace falta importar nada
-
-      const fila = {
-        'ID': id,
-        'Tipo de identificación': odoo['TipoIdentificacion'] || '',
-        'Código': nif,
-        'Razón social': odoo['Nombre'] || '',
-        'Ciudad': findKeyCI(odoo, 'Ciudad') || '',
-        'Estado': limpiarSufijoAR(findKeyCI(odoo, 'Provincia')) || '',
-        'Domicilio': findKeyCI(odoo, 'Calle') || '',
-        'Situación ante el impuesto': mapSituacionInversa(odoo['Tipo de Responsabilidad AFIP']),
-        'Email': odoo['Correo electrónico'] || '',
-        'Código postal': findKeyCI(odoo, 'C.P.') || findKeyCI(odoo, 'CP') || findKeyCI(odoo, 'Código postal') || ''
+    // Hoja 3: Extracto — todos EXCEPTO Paid online, filtrado por fecha de liberacion en periodo
+    function toExtractoRow(r){
+      return {
+        'FECHA DE APROBACION': r.fecha,
+        'NUMERO DE IDENTIFICACION': r.numId||'',
+        'ID DE OPERACION EN MERCADO PAGO': r.idOpMP,
+        'TIPO DE OPERACION': r.tipoOp,
+        'MONEDA': r.moneda,
+        'VALOR DE LA COMPRA': r.monto,
+        'COMISIONES + IVA': r.comis,
+        'DETALLE DE LA VENTA': r.detalle||'',
+        'Type': (r.concept==='suscripcion'||r.concept==='deuda_comisiones')?'Paid offline':(CONCEPT_LABELS[r.concept]||r.concept||''),
+        'ID': r.dashId||'',
+        'Nombre': r.nombre||'',
+        'Detalle': r.detalleFact||'',
       };
+    }
+    var dataExtracto = allRows.filter(function(r){
+      return r.concept !== 'paid_online' && enPeriodo(r.fechaLib||r.fecha);
+    }).map(toExtractoRow);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataExtracto.length?dataExtracto:[{}]), 'Extracto');
 
-      let faltaAlgo = false;
-      const filaMarcada = {};
-      CAMPOS_DASH.forEach(campo => {
-        const val = fila[campo];
-        if(val === undefined || val === null || String(val).trim() === ''){
-          filaMarcada[campo] = '⚠ FALTA ' + campo.toUpperCase();
-          faltaAlgo = true;
-        } else {
-          filaMarcada[campo] = val;
-        }
-      });
+    // Hoja 4: Calculo de saldos
+    var saldoInicial = libData ? (libData.saldoInicial||0) : 0;
+    // Extracto sum = todos menos paid online
+    var sumExtracto = dataExtracto.reduce(function(s,r){
+      return s + (parseFloat(r['VALOR DE LA COMPRA'])||0) + (parseFloat(r['COMISIONES + IVA'])||0);
+    }, 0);
+    var saldoTeorico = saldoInicial + sumExtracto;
+    // Paid online NO liberado = fecha liberacion > fecha hasta del periodo
+    var sumPONoLib = allRows.filter(function(r){
+      if(r.concept !== 'paid_online' || !r.fechaLib) return false;
+      var dLib = parseFechaLocal(r.fechaLib);
+      return hastaD && dLib > hastaD;
+    }).reduce(function(s,r){ return s + r.monto + r.comis; }, 0);
+    var saldoTeoricoCorregido = saldoTeorico - sumPONoLib;
+    var saldoFinalMP = libData ? libData.saldoFinal : '';
+    var diff = saldoFinalMP !== '' ? saldoTeoricoCorregido - saldoFinalMP : '';
+    var calcRows = [
+      {'Concepto':'Saldo Inicial Odoo',              'Importe': saldoInicial},
+      {'Concepto':'Movimiento "Extractos"',          'Importe': sumExtracto},
+      {'Concepto':'Saldo final teorico',             'Importe': saldoTeorico},
+      {'Concepto':'Paid online no liberado (-)',      'Importe': sumPONoLib},
+      {'Concepto':'Saldo final teorico corregido',   'Importe': saldoTeoricoCorregido},
+      {},
+      {'Concepto':'Saldo final MP (liberaciones)',   'Importe': saldoFinalMP},
+      {'Concepto':'Diferencia',                      'Importe': diff},
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(calcRows), 'Calculo de saldos');
 
-      if(faltaAlgo){ incompletos.push(filaMarcada); }
-      else { completos.push(fila); }
-    });
+    // Hoja 5: No clasificados
+    var allCols=[]; var seen=new Set();
+    unclassRows.forEach(function(r){Object.keys(r._raw).forEach(function(k){if(!seen.has(k)&&!k.startsWith('_')){seen.add(k);allCols.push(k);}});});
+    var unc=unclassRows.map(function(r){var o={'PAIS':r.country};allCols.forEach(function(k){o[k]=r._raw[k]||'';});return o;});
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(unc.length?unc:[{nota:'Sin no clasificados'}]), 'No clasificados');
 
-    window.__vcBuckets = window.__vcBuckets || {};
-    window.__vcBuckets['dash_completos'] = completos;
-    window.__vcBuckets['dash_incompletos'] = incompletos;
+    XLSX.writeFile(wb, 'Extracto bancario_'+fecha+'.xlsx');
+  }
+}
 
-    const results2 = document.getElementById('results-2');
-    results2.style.display = 'block';
-    const banner2 = incompletos.length > 0
-      ? '<p class="vc-note" style="background:#fef9c3;color:#854d0e;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-weight:600;">⚠️ ' + incompletos.length + ' cuenta' + (incompletos.length===1?'':'s') + ' con datos incompletos — revisar antes de importar.</p>'
-      : '';
-    results2.innerHTML =
-      banner2 +
-      '<div class="vc-summary">' +
-        '<div class="vc-metric" style="background:var(--naranja);"><span class="n" style="color:#fff;">' + (completos.length + incompletos.length) + '</span><span class="l" style="color:#fff;">Cuentas a importar a Dash</span></div>' +
-        '<div class="vc-metric"><span class="n" style="color:#15803d;">' + completos.length + '</span><span class="l">Listas para importar</span></div>' +
-        '<div class="vc-metric"><span class="n" style="color:#854d0e;">' + incompletos.length + '</span><span class="l">Con datos faltantes</span></div>' +
-      '</div>' +
-      sectionCsv('dash_completos', 'Import a Dash — listas para importar', completos, 'CSV separado por comas, con las 9 columnas que pide Dash. Todos los campos están completos.', 'paid', 'Completo') +
-      sectionCsv('dash_incompletos', 'Revisar antes de importar', incompletos, 'Cada celda vacía quedó marcada con el campo que falta (ej. "FALTA CIUDAD"). Completá a mano en Odoo o Dash y volvé a correr el análisis.', 'cancelled', 'Incompleto');
 
-    log2.textContent = 'Listo — ' + (completos.length + incompletos.length) + ' cuentas para Dash.';
+// ── dLOCAL JS ────────────────────────────────────────────────────
+
+// ========================================================================= //
+// Utilidades de parseo                                                       //
+// ========================================================================= //
+function parseNumEs(s) {
+  if (s === null || s === undefined || s === '') return 0;
+  if (typeof s === 'number') return s;
+  s = String(s).trim();
+  if (!s) return 0;
+  // formato español "1.234,56" -> "1234.56"
+  if (s.indexOf(',') !== -1 && s.lastIndexOf(',') > s.lastIndexOf('.') && s.split(',').length === 2) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseDateAny(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  // ISO: 2026-07-15 01:30:32 (con o sin hora)
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (m) return new Date(Date.UTC(+m[1], +m[2]-1, +m[3], +(m[4]||0), +(m[5]||0), +(m[6]||0)));
+  // DD/MM/YYYY HH:MM
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (m) return new Date(Date.UTC(+m[3], +m[2]-1, +m[1], +(m[4]||0), +(m[5]||0), +(m[6]||0)));
+  return null;
+}
+
+// Fecha sin hora (para display "solo día") — útil en algunos casos, pero
+// mantenemos la fecha completa como valor principal para ordenar correctamente.
+function fechaSoloDiaOf(d) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+function firstInvoiceId(inv) {
+  if (!inv) return null;
+  const head = String(inv).split('::')[0].trim();
+  return head || null;
+}
+
+function fmtDate(d) {
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth()+1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getUTCFullYear()}`;
+}
+
+function fmtNum(n, dec) {
+  if (n === null || n === undefined || n === '') return '';
+  if (typeof n !== 'number') return String(n);
+  return n.toLocaleString('es-AR', { minimumFractionDigits: dec ?? 2, maximumFractionDigits: dec ?? 2 });
+}
+
+// ========================================================================= //
+// Cargas de archivos                                                         //
+// ========================================================================= //
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsText(file, 'utf-8');
   });
+}
+function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsArrayBuffer(file);
+  });
+}
 
-  // Panel de reglas: de solo lectura, cambia según la solapa activa.
-  let etapaActiva = 1;
-  function renderReglas(){
-    const cont = document.getElementById('reglas-cards');
-    const reglas = etapaActiva === 1 ? REGLAS_ETAPA1 : REGLAS_ETAPA2;
-    cont.innerHTML = reglas.map(r =>
-      '<div class="vc-rule-card"><h4>' + r.titulo + '</h4><p>' + r.texto + '</p></div>'
-    ).join('');
+async function parseCsv(file, forcedDelimiter) {
+  const text = await readFileAsText(file);
+  // Autodetect delimiter (contar ; vs , en primer 2KB)
+  let delim = forcedDelimiter;
+  if (!delim) {
+    const sample = text.slice(0, 2048);
+    delim = (sample.split(';').length > sample.split(',').length) ? ';' : ',';
+  }
+  const res = Papa.parse(text, {
+    delimiter: delim, header: true, skipEmptyLines: true,
+  });
+  return res.data;
+}
+
+async function parsePlantilla(file) {
+  // Devuelve dict {referenciaDash -> idOdoo}
+  const buffer = await readFileAsArrayBuffer(file);
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer);
+  const ws = wb.worksheets[0];
+  const mapping = {};
+  let first = true;
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    if (first) { first = false; return; }
+    const refCell = row.getCell(8); // col H
+    const idCell = row.getCell(9);  // col I
+    let ref = refCell && refCell.value;
+    let idO = idCell && idCell.value;
+    if (ref && typeof ref === 'object' && 'result' in ref) ref = ref.result;
+    if (idO && typeof idO === 'object' && 'result' in idO) idO = idO.result;
+    if (ref === null || ref === undefined || ref === '') return;
+    const key = String(parseInt(ref, 10)); // normalizar como string de int
+    if (key === 'NaN') return;
+    if (idO !== null && idO !== undefined && idO !== '') {
+      const n = Number(idO);
+      mapping[key] = isNaN(n) ? String(idO).trim() : n;
+    }
+  });
+  return mapping;
+}
+
+async function parseAccounts(file) {
+  const rows = await parseCsv(file, ';');
+  const mapping = {};
+  for (const r of rows) {
+    // Header esperado: ID;Nombre;País (a veces con BOM)
+    const idKey = r['ID'] ?? r['﻿ID'] ?? r[Object.keys(r)[0]];
+    const nombre = r['Nombre'] ?? r[Object.keys(r)[1]];
+    if (idKey && nombre) {
+      mapping[String(idKey).trim()] = String(nombre).trim();
+    }
+  }
+  return mapping;
+}
+
+// ========================================================================= //
+// Lógica de negocio                                                          //
+// ========================================================================= //
+function construirMovimientos(rawRows, plantilla, accountss, esBrl) {
+  const movs = [];
+  for (const r of rawRows) {
+    const fechaStr = r['Confirmation date'] || r['Creation date'] || '';
+    const fechaFull = parseDateAny(fechaStr);
+    if (!fechaFull) continue;
+    // Guardamos la fecha completa para ordenar (con hora) pero el valor de
+    // Excel es la fecha sola: Excel la muestra igual con formato dd/mm/yyyy.
+    const fecha = fechaSoloDiaOf(fechaFull);
+
+    const invoiceStr = (r['Invoice'] || '').trim();
+    const firstId = firstInvoiceId(invoiceStr);
+    let descripcion, contacto, invoiceVal;
+    if (firstId && /^\d+$/.test(firstId)) {
+      invoiceVal = parseInt(firstId, 10);
+      descripcion = accountss[firstId] || '#N/D';
+      contacto = plantilla[firstId] || '#N/D';
+    } else {
+      descripcion = '#N/D';
+      contacto = '#N/D';
+      invoiceVal = '#N/D';
+    }
+
+    const referencia = (r['Reference'] || '').trim() || null;
+    const moneda = (r['Local currency'] || '').trim() || null;
+    const localAmount = parseNumEs(r['Local amount']);
+    const amountUsd = parseNumEs(r['Amount']);
+
+    let importeEnMoneda, importe;
+    if (esBrl) {
+      importeEnMoneda = 0;
+      importe = localAmount;
+    } else {
+      importeEnMoneda = localAmount;
+      importe = amountUsd;
+    }
+
+    movs.push({
+      fecha,
+      fechaFull,   // usada sólo para orden cronológico dentro del día
+      descripcion,
+      contacto,
+      referencia,
+      monedaExtranjera: moneda,
+      importeEnMoneda,
+      importe,
+      invoice: invoiceVal,
+      transactionType: (r['Transaction type'] || 'PAYMENT').trim(),
+    });
+  }
+  return movs;
+}
+
+function eliminarPagoContracargo(movs) {
+  // Indexar PAYMENTs por (invoice, abs(importe))
+  const REVERSIONES = new Set(['CHARGEBACK', 'REFUND']);
+  const payIdx = new Map();
+  movs.forEach((m, i) => {
+    if (m.transactionType === 'PAYMENT' && typeof m.invoice === 'number') {
+      const key = m.invoice + '|' + Math.abs(m.importe).toFixed(6);
+      if (!payIdx.has(key)) payIdx.set(key, []);
+      payIdx.get(key).push(i);
+    }
+  });
+  const eliminar = new Set();
+  movs.forEach((m, i) => {
+    if (REVERSIONES.has(m.transactionType) && typeof m.invoice === 'number') {
+      const key = m.invoice + '|' + Math.abs(m.importe).toFixed(6);
+      const cands = (payIdx.get(key) || []).filter(j => !eliminar.has(j));
+      if (cands.length) {
+        eliminar.add(cands[0]);
+        eliminar.add(i);
+      }
+    }
+  });
+  return movs.filter((_, i) => !eliminar.has(i));
+}
+
+function fechaFinDelDia(d) {
+  // 23:59:59.999 UTC del día indicado — sitúa las comisiones al final del último día
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999));
+}
+
+function agregarComisionesNoBrl(movs, rawDlocalRows, mesLabel) {
+  if (!movs.length) return movs;
+  const feeByCurr = {};
+  for (const r of rawDlocalRows) {
+    const c = (r['Local currency'] || '').trim();
+    if (c && c !== 'BRL') {
+      feeByCurr[c] = (feeByCurr[c] || 0) + parseNumEs(r['Fee']);
+    }
+  }
+  const fechaMax = movs.reduce((mx, m) => (m.fecha > mx ? m.fecha : mx), movs[0].fecha);
+  const finDia = fechaFinDelDia(fechaMax);
+  const extras = [];
+  for (const moneda of ['CLP', 'COP', 'MXN']) {
+    if (moneda in feeByCurr) {
+      const label = `Comisiones ${mesLabel} ${moneda}`;
+      extras.push({
+        fecha: fechaMax, fechaFull: finDia, descripcion: label, contacto: null,
+        referencia: label, monedaExtranjera: null,
+        importeEnMoneda: null, importe: feeByCurr[moneda], invoice: null,
+      });
+    }
+  }
+  return movs.concat(extras);
+}
+
+function agregarComisionesBrl(movs, rawBrlRows, mesLabel) {
+  if (!movs.length) return movs;
+  let totalFee = 0, totalLocal = 0, totalAmount = 0;
+  for (const r of rawBrlRows) {
+    totalFee += parseNumEs(r['Fee']);
+    totalLocal += parseNumEs(r['Local amount']);
+    totalAmount += parseNumEs(r['Amount']);
+  }
+  const exchangeDiff = -(totalLocal - totalAmount);
+  const fechaMax = movs.reduce((mx, m) => (m.fecha > mx ? m.fecha : mx), movs[0].fecha);
+  const finDia = fechaFinDelDia(fechaMax);
+  const l1 = `Comisiones ${mesLabel} BRL`;
+  const l2 = `Comisiones ${mesLabel} BRL (exchange difference)`;
+  return movs.concat([
+    { fecha: fechaMax, fechaFull: finDia, descripcion: l1, contacto: null, referencia: l1,
+      monedaExtranjera: null, importeEnMoneda: null, importe: totalFee, invoice: null },
+    { fecha: fechaMax, fechaFull: finDia, descripcion: l2, contacto: null, referencia: l2,
+      monedaExtranjera: null, importeEnMoneda: null, importe: exchangeDiff, invoice: null },
+  ]);
+}
+
+// ========================================================================= //
+// Generación de XLSX con ExcelJS                                             //
+// ========================================================================= //
+const HEADERS = [
+  "Fecha","Descripción","Contacto/ID de la DB","Referencia",
+  "Moneda Extranjera","Importe en moneda","Importe","Invoice",
+];
+const COL_WIDTHS = [12, 35, 35, 55, 10, 14, 14, 12];
+
+function escribirSolapa(wb, nombre, movs, saldoInicial) {
+  const ws = wb.addWorksheet(nombre, { views: [{ state: 'frozen', ySplit: 1, zoomScale: 80 }] });
+  ws.addRow(HEADERS);
+  HEADERS.forEach((_, i) => {
+    ws.getColumn(i+1).width = COL_WIDTHS[i];
+  });
+  // Header en negrita
+  const headerRow = ws.getRow(1);
+  headerRow.font = { bold: true };
+
+  for (const m of movs) {
+    const row = ws.addRow([
+      m.fecha,
+      m.descripcion,
+      m.contacto,
+      m.referencia,
+      m.monedaExtranjera,
+      m.importeEnMoneda !== null ? m.importeEnMoneda : 0,
+      m.importe,
+      m.invoice,
+    ]);
+    row.getCell(1).numFmt = 'dd/mm/yyyy';
+    row.getCell(6).numFmt = '#,##0.00';
+    row.getCell(7).numFmt = '#,##0.00';
   }
 
-  const SHEET_PROXIMAMENTE_URL = 'https://docs.google.com/spreadsheets/d/1e6qAnhdD1PQefr--q0vfg-6tp1dechYXiNKY0lldV8M/gviz/tq?tqx=out:csv&gid=0';
-  let proximamenteCargado = false;
-
-  window.cargarProximamente = async function(){
-    const status = document.getElementById('proximamente-status');
-    const cont = document.getElementById('proximamente-cards');
-    status.textContent = 'Cargando desde Google Sheets...';
-    try{
-      const resp = await fetch(SHEET_PROXIMAMENTE_URL);
-      if(!resp.ok) throw new Error('HTTP ' + resp.status);
-      const text = await resp.text();
-      const filas = parseCsvRows(text, ',');
-      if(!filas.length){
-        cont.innerHTML = '<p class="vc-note">El Sheet no tiene filas todavía.</p>';
-      } else {
-        cont.innerHTML = filas.map(f => {
-          const titulo = f['Título'] || f['Titulo'] || '(sin título)';
-          const concepto = f['Concepto'] || '';
-          const importante = f['Importante'] || '';
-          return '<div class="vc-rule-card"><h4>' + titulo + '</h4><p>' + concepto + '</p>' +
-            (importante ? '<p style="margin-top:6px;color:var(--naranja);font-weight:600;">⚠ ' + importante + '</p>' : '') +
-            '</div>';
-        }).join('');
-      }
-      status.textContent = '';
-      proximamenteCargado = true;
-    } catch(err){
-      status.textContent = '';
-      cont.innerHTML = '<p class="vc-note" style="background:#fee2e2;color:#991b1b;border-radius:8px;padding:10px 14px;">No se pudo cargar el Sheet (' + err.message + '). ' +
-        'Si el error es de CORS, hace falta publicarlo: en el Sheet, andá a <strong>Archivo → Compartir → Publicar en la web</strong> (es distinto de "Compartir" común), publicá la hoja como CSV, y avisá para actualizar el link acá.</p>';
-    }
+  // Autofiltro cubriendo hasta las filas de movimientos (sin incluir saldo)
+  const filaUltimoMov = ws.rowCount;
+  ws.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: filaUltimoMov, column: HEADERS.length },
   };
 
-  window.vcSetCompania = function(valor){
-    document.getElementById('etapa1-comandarina_srl').style.display = valor === 'comandarina_srl' ? '' : 'none';
-    document.getElementById('etapa1-proximamente').style.display = valor === 'comandarina_srl' ? 'none' : '';
+  // Fila de SALDO INICIAL (si se proporcionó)
+  if (saldoInicial !== null && saldoInicial !== undefined && !isNaN(saldoInicial)) {
+    ws.addRow([]);  // fila vacía
+    ws.addRow([]);  // fila vacía
+    const saldoRow = ws.addRow([null, 'SALDO INICIAL', null, null, null, null, saldoInicial, null]);
+    saldoRow.getCell(2).font = { bold: true };
+    saldoRow.getCell(7).font = { bold: true };
+    saldoRow.getCell(7).numFmt = '#,##0.00';
+  }
+}
+
+async function generarXlsx(nombreArchivo, movsDlocal, movsBrl, saldoDlocal, saldoBrl) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Fudo · Extractos dLocal';
+  wb.created = new Date();
+  escribirSolapa(wb, 'dLocal', movsDlocal, saldoDlocal);
+  escribirSolapa(wb, 'dLocal BRL', movsBrl, saldoBrl);
+  const buf = await wb.xlsx.writeBuffer();
+  saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), nombreArchivo);
+}
+
+// ========================================================================= //
+// Exportación CSV para Odoo                                                  //
+// ========================================================================= //
+// Odoo espera: 7 columnas, ; delimiter, encoding Latin-1, CRLF,
+// números español (coma decimal), fecha dd/mm/yyyy, importes 2 decimales.
+// NO incluye la columna Invoice ni el Saldo Inicial.
+const HEADERS_ODOO = [
+  "Fecha","Descripción","Contacto/ID de la DB","Referencia",
+  "Moneda Extranjera","Importe en Moneda","Importe",
+];
+
+function fmtNumEs(n, dec) {
+  if (n === null || n === undefined || n === '') return '';
+  if (typeof n !== 'number' || isNaN(n)) return String(n);
+  const opts = { minimumFractionDigits: dec ?? 2, maximumFractionDigits: dec ?? 2, useGrouping: true };
+  // toLocaleString es-AR: usa . como miles y , como decimal, tal como Odoo espera
+  return n.toLocaleString('es-AR', opts);
+}
+
+function csvEscape(v) {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  // Si contiene ; " o salto de línea, envolver en comillas y escapar
+  if (/[;"\r\n]/.test(s)) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function movsAOdooCsv(movs) {
+  const lines = [HEADERS_ODOO.map(csvEscape).join(';')];
+  for (const m of movs) {
+    const fecha = m.fecha ? fmtDate(m.fecha) : '';
+    const impMon = (m.importeEnMoneda !== null && m.importeEnMoneda !== undefined)
+      ? fmtNumEs(m.importeEnMoneda) : '0,00';
+    const imp = (typeof m.importe === 'number') ? fmtNumEs(m.importe) : '';
+    const row = [
+      fecha,
+      m.descripcion ?? '',
+      m.contacto ?? '',
+      m.referencia ?? '',
+      m.monedaExtranjera ?? '',
+      impMon,
+      imp,
+    ].map(csvEscape).join(';');
+    lines.push(row);
+  }
+  // CRLF
+  return lines.join('\r\n') + '\r\n';
+}
+
+// Convertir string UTF-8 a bytes Latin-1 (Windows-1252). Caracteres fuera del
+// rango se reemplazan por '?' — para nombres es/pt-Latin no debería pasar.
+function utf8ToLatin1Bytes(s) {
+  const bytes = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    bytes[i] = code < 256 ? code : 63; // '?'
+  }
+  return bytes;
+}
+
+function descargarCsv(nombreArchivo, contenido) {
+  const bytes = utf8ToLatin1Bytes(contenido);
+  const blob = new Blob([bytes], { type: 'text/csv;charset=iso-8859-1' });
+  saveAs(blob, nombreArchivo);
+}
+
+function rangoFechasStr(movs) {
+  const fechas = movs.map(m => m.fecha).filter(Boolean);
+  if (!fechas.length) return '';
+  const dm = d => String(d.getUTCDate()).padStart(2,'0') + '.' + String(d.getUTCMonth()+1).padStart(2,'0');
+  const min = new Date(Math.min(...fechas.map(d => d.getTime())));
+  const max = new Date(Math.max(...fechas.map(d => d.getTime())));
+  return `${dm(min)} al ${dm(max)}`;
+}
+
+async function descargarCsvsOdoo(movsDlocal, movsBrl) {
+  const rangoDl = rangoFechasStr(movsDlocal);
+  const rangoBr = rangoFechasStr(movsBrl);
+  const csvDl = movsAOdooCsv(movsDlocal);
+  const csvBr = movsAOdooCsv(movsBrl);
+  descargarCsv(`Extracto Bancario LLC - DLocal ${rangoDl}.csv`, csvDl);
+  // Pequeño delay para que el navegador no unifique/bloquee la segunda descarga
+  await new Promise(r => setTimeout(r, 400));
+  descargarCsv(`Extracto Bancario LLC - DLocal brl ${rangoBr}.csv`, csvBr);
+}
+
+function parseSaldoInput(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  if (!s) return null;
+  // Aceptar coma o punto como decimal, y . o espacio como separador de miles
+  const clean = s.replace(/\s+/g, '');
+  // Si tiene coma decimal (formato español): "1.234,56" → "1234.56"
+  if (clean.indexOf(',') !== -1 && clean.lastIndexOf(',') > clean.lastIndexOf('.')) {
+    return parseFloat(clean.replace(/\./g, '').replace(',', '.'));
+  }
+  return parseFloat(clean.replace(/,/g, ''));
+}
+
+// ========================================================================= //
+// Pipeline                                                                   //
+// ========================================================================= //
+async function procesarTodo(files, mesLabelManual) {
+  const [rawDlocalAll, rawBrl, plantilla, accountss] = await Promise.all([
+    parseCsv(files.dlocal),   // auto-detecta delimiter
+    parseCsv(files.brl),      // auto-detecta delimiter
+    parsePlantilla(files.plantilla),
+    parseAccounts(files.accountss),
+  ]);
+
+  const rawDlocal = rawDlocalAll.filter(r => (r['Local currency'] || '').trim() !== 'BRL');
+
+  let movsDlocal = construirMovimientos(rawDlocal, plantilla, accountss, false);
+  let movsBrl = construirMovimientos(rawBrl, plantilla, accountss, true);
+
+  movsDlocal = eliminarPagoContracargo(movsDlocal);
+  movsBrl = eliminarPagoContracargo(movsBrl);
+
+  // Inferir mes label
+  let mesLabel = mesLabelManual;
+  if (!mesLabel) {
+    const allFechas = movsDlocal.concat(movsBrl).map(m => m.fecha).filter(Boolean);
+    const maxFecha = allFechas.length ? new Date(Math.max(...allFechas.map(d => d.getTime()))) : new Date();
+    mesLabel = String(maxFecha.getUTCMonth()+1).padStart(2, '0') + '-' + maxFecha.getUTCFullYear();
+  }
+
+  movsDlocal = agregarComisionesNoBrl(movsDlocal, rawDlocal, mesLabel);
+  movsBrl = agregarComisionesBrl(movsBrl, rawBrl, mesLabel);
+
+  // Sort estable por fecha (solo día). Dentro del día preserva el orden del CSV
+  // (DESC por hora). Las filas de comisiones tienen descripcion tipo string,
+  // así que las llevamos al final del último día.
+  const sortKey = m => [m.fecha.getTime(), (typeof m.descripcion === 'string' && !/^\d+$/.test(m.descripcion)) ? 1 : 0];
+  const cmp = (a, b) => {
+    const ka = sortKey(a), kb = sortKey(b);
+    return ka[0] - kb[0] || ka[1] - kb[1];
+  };
+  movsDlocal.sort(cmp);
+  movsBrl.sort(cmp);
+
+  // Determinar nombre de archivo por rango de fechas
+  const fechas = rawDlocalAll.map(r => parseDateAny(r['Confirmation date'])).filter(Boolean);
+  let nombre = 'Extractos.xlsx';
+  if (fechas.length) {
+    const fmin = new Date(Math.min(...fechas.map(d => d.getTime())));
+    const fmax = new Date(Math.max(...fechas.map(d => d.getTime())));
+    const dm = d => String(d.getUTCDate()).padStart(2,'0') + '.' + String(d.getUTCMonth()+1).padStart(2,'0');
+    nombre = `Extractos ${dm(fmin)} al ${dm(fmax)}.xlsx`;
+  }
+
+  return { movsDlocal, movsBrl, nombre, mesLabel };
+}
+
+// ========================================================================= //
+// UI                                                                         //
+// ========================================================================= //
+const FILES = { dlocal: null, brl: null, plantilla: null, accountss: null };
+let RESULT = null;
+let PREVIEW_SHEET = 'dlocal';
+
+function setupDropzone(id, expectedExt) {
+  const zone = document.getElementById(id);
+  const input = zone.querySelector('input[type=file]');
+  const key = input.dataset.key;
+
+  const setLoaded = (file) => {
+    FILES[key] = file;
+    zone.classList.remove('error');
+    zone.classList.add('loaded');
+    zone.querySelector('.status').textContent = 'Cargado ✓';
+    zone.querySelector('.filename').textContent = file.name;
+    updateProcesarBtn();
+    hideError();
+  };
+  const setError = (msg) => {
+    zone.classList.remove('loaded');
+    zone.classList.add('error');
+    zone.querySelector('.status').textContent = msg;
+    zone.querySelector('.filename').textContent = '';
   };
 
-  window.vcSetEtapa = function(n){
-    etapaActiva = n;
-    document.getElementById('tab-etapa1').classList.toggle('active', n === 1);
-    document.getElementById('tab-etapa2').classList.toggle('active', n === 2);
-    document.getElementById('tab-etapa3').classList.toggle('active', n === 3);
-    document.getElementById('etapa1-panel').style.display = n === 1 ? '' : 'none';
-    document.getElementById('etapa2-panel').style.display = n === 2 ? '' : 'none';
-    document.getElementById('etapa3-panel').style.display = n === 3 ? '' : 'none';
-    document.getElementById('sec-reglas-wrap').style.display = n === 3 ? 'none' : '';
-    if(n !== 3) renderReglas();
-    else if(!proximamenteCargado) cargarProximamente();
-  };
+  input.addEventListener('change', () => {
+    if (!input.files.length) return;
+    setLoaded(input.files[0]);
+  });
+  zone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    zone.classList.add('dragover');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    if (!e.dataTransfer.files.length) return;
+    const f = e.dataTransfer.files[0];
+    input.files = e.dataTransfer.files;
+    setLoaded(f);
+  });
+}
 
-  renderReglas();
-})();
+function updateProcesarBtn() {
+  const ok = Object.values(FILES).every(f => f !== null);
+  document.getElementById('btn-procesar').disabled = !ok;
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function hideError() {
+  document.getElementById('error-msg').classList.remove('visible');
+}
+
+function renderPreview(result) {
+  document.getElementById('preview').classList.add('visible');
+
+  const totalDlocal = result.movsDlocal.length;
+  const totalBrl = result.movsBrl.length;
+  document.getElementById('count-dlocal').textContent = totalDlocal;
+  document.getElementById('count-brl').textContent = totalBrl;
+
+  const sumImporte = arr => arr.reduce((s, m) => s + (typeof m.importe === 'number' ? m.importe : 0), 0);
+  const ndCount = result.movsDlocal.concat(result.movsBrl).filter(m => m.contacto === '#N/D').length;
+  document.getElementById('nd-count').textContent = ndCount;
+
+  document.getElementById('summary-grid').innerHTML = `
+    <div class="stat"><div class="value">${totalDlocal}</div><div class="label">Filas dLocal</div></div>
+    <div class="stat"><div class="value">${totalBrl}</div><div class="label">Filas dLocal BRL</div></div>
+    <div class="stat"><div class="value">${result.mesLabel}</div><div class="label">Mes operatoria</div></div>
+    <div class="stat"><div class="value">USD ${fmtNum(sumImporte(result.movsDlocal))}</div><div class="label">Total dLocal (importe)</div></div>
+    <div class="stat"><div class="value">BRL ${fmtNum(sumImporte(result.movsBrl))}</div><div class="label">Total dLocal BRL (importe)</div></div>
+  `;
+
+  const comMovs = result.movsDlocal.concat(result.movsBrl)
+    .filter(m => typeof m.descripcion === 'string' && m.descripcion.startsWith('Comisiones'));
+  document.getElementById('commissions').innerHTML =
+    '<strong>Comisiones agregadas</strong><ul>' +
+    comMovs.map(m => `<li><span>${m.descripcion}</span><span>${fmtNum(m.importe)}</span></li>`).join('') +
+    '</ul>';
+
+  renderTable(PREVIEW_SHEET);
+}
+
+function renderTable(sheet) {
+  const movs = sheet === 'dlocal' ? RESULT.movsDlocal : RESULT.movsBrl;
+  const tbody = document.getElementById('preview-tbody');
+  tbody.innerHTML = '';
+  // Show all rows (limit 500 for performance)
+  const rows = movs.slice(0, 500);
+  for (const m of rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDate(m.fecha)}</td>
+      <td>${escapeHtml(String(m.descripcion ?? ''))}</td>
+      <td>${escapeHtml(String(m.contacto ?? ''))}</td>
+      <td>${escapeHtml(String(m.referencia ?? ''))}</td>
+      <td>${escapeHtml(String(m.monedaExtranjera ?? ''))}</td>
+      <td class="num">${m.importeEnMoneda !== null && m.importeEnMoneda !== undefined ? fmtNum(m.importeEnMoneda) : ''}</td>
+      <td class="num">${typeof m.importe === 'number' ? fmtNum(m.importe) : escapeHtml(String(m.importe ?? ''))}</td>
+      <td class="num">${escapeHtml(String(m.invoice ?? ''))}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  if (movs.length > 500) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="8" style="text-align:center; color: var(--text-muted); font-style: italic;">… mostrando 500 de ${movs.length} filas — se descargan todas en el XLSX</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Wiring
+['drop-dlocal','drop-brl','drop-plantilla','drop-accountss'].forEach(id => setupDropzone(id));
+
+document.getElementById('btn-procesar').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-procesar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Procesando…';
+  hideError();
+  try {
+    // Mes se autodetecta de las fechas. Si en el futuro se agrega input, leerlo aquí.
+    const mesInput = document.getElementById('mes-input');
+    const mesLabel = mesInput ? mesInput.value.trim() : '';
+    RESULT = await procesarTodo(FILES, mesLabel || null);
+    renderPreview(RESULT);
+    document.getElementById('preview').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
+    console.error(e);
+    showError('Error al procesar: ' + (e.message || e));
+  } finally {
+    btn.innerHTML = 'Procesar archivos';
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('btn-descargar').addEventListener('click', async () => {
+  if (!RESULT) return;
+  const btn = document.getElementById('btn-descargar');
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Generando…';
+  try {
+    const saldoDlocal = parseSaldoInput(document.getElementById('saldo-dlocal').value);
+    const saldoBrl = parseSaldoInput(document.getElementById('saldo-brl').value);
+    await generarXlsx(RESULT.nombre, RESULT.movsDlocal, RESULT.movsBrl, saldoDlocal, saldoBrl);
+  } catch (e) {
+    showError('Error al generar el XLSX: ' + (e.message || e));
+  } finally {
+    btn.innerHTML = label;
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('btn-descargar-csv').addEventListener('click', async () => {
+  if (!RESULT) return;
+  const btn = document.getElementById('btn-descargar-csv');
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Generando…';
+  try {
+    await descargarCsvsOdoo(RESULT.movsDlocal, RESULT.movsBrl);
+  } catch (e) {
+    showError('Error al generar los CSVs: ' + (e.message || e));
+  } finally {
+    btn.innerHTML = label;
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('tabs').addEventListener('click', (e) => {
+  const t = e.target.closest('.tab');
+  if (!t) return;
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  PREVIEW_SHEET = t.dataset.sheet;
+  if (RESULT) renderTable(PREVIEW_SHEET);
+});
+
+document.getElementById('reset-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  closeDlocal();
+});
+
 </script>
 </body>
 </html>
