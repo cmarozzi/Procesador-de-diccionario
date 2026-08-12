@@ -207,7 +207,7 @@
   ];
 
   const REGLAS_ETAPA2 = [
-    { titulo: 'Condición', texto: 'La Referencia existe en Odoo, Odoo.NIF (Código) tiene valor, y Billing.Código está vacío para esa cuenta en Dash → se arma la fila de import para Dash. No depende de qué regla de la Etapa 1 la generó (Metabase, carga manual, etc.), solo del estado final en Odoo vs Dash.' },
+    { titulo: 'Condición', texto: 'La cuenta existe en el reporte de Accounts de Dash (Argentina), la Referencia existe en Odoo, Odoo.NIF (Código) tiene valor, y Billing.Código está vacío para esa cuenta → se arma la fila de import para Dash. No depende de qué regla de la Etapa 1 la generó (Metabase, carga manual, etc.), solo del estado final en Odoo vs Dash. Si la cuenta no aparece en Accounts, no se toca nada aunque Odoo tenga el NIF cargado.' },
     { titulo: 'Contactos excluidos', texto: 'Se ignoran los contactos Archivados en Odoo y las Referencias con sufijo "_old" (bajas de una corrida anterior de la Etapa 1) — no participan del cruce. Este filtro ya está aplicado siempre, aunque el número total resultante sea grande: representa el acumulado histórico de todas las correcciones hechas en Odoo que Dash todavía no tiene, no solo las de la última corrida.' },
     { titulo: 'Cuentas internas (Fudo/Deli) — limitación', texto: 'La Etapa 2 no vuelve a chequear el Estado comercial ni el mail de admin (no carga esos archivos acá). Si una cuenta interna llegó a tener NIF cargado en Odoo antes de que existiera este chequeo, podría aparecer en el resultado — revisar manualmente si aparece algo sospechoso.' },
     { titulo: 'Mapeo de campos (Odoo → Dash)', texto: 'ID = Referencia. Tipo de identificación = Odoo.Tipo de Identificación (ya sin el sufijo " (AR)"). Código = Odoo.NIF. Razón social = Odoo.Nombre. Ciudad = Odoo.Ciudad. Estado = Odoo.Provincia. Domicilio = Odoo.Calle. Código postal = Odoo.C.P. Email = Odoo.Correo electrónico.' },
@@ -669,9 +669,9 @@
   });
 
   // --- Etapa 2 · Dash: estado y carga de archivos ---
-  const state2 = { odoo:null, billing:null };
+  const state2 = { odoo:null, billing:null, accounts:null };
   function checkReady2(){
-    document.getElementById('btn-process-2').disabled = !(state2.odoo && state2.billing);
+    document.getElementById('btn-process-2').disabled = !(state2.odoo && state2.billing && state2.accounts);
   }
 
   document.getElementById('f2-odoo').addEventListener('change', async e => {
@@ -690,13 +690,15 @@
       const buf = await f.arrayBuffer();
       const entries = readZipEntries(buf);
       const billEntry = entries.find(en => /billing.*\.csv$/i.test(en.name));
-      if(!billEntry){
+      const accEntry = entries.find(en => /accounts.*\.csv$/i.test(en.name));
+      if(!billEntry || !accEntry){
         const nombres = entries.map(en => en.name).join(', ');
-        setStatus('s2-dashzip', 'No se encontró billing_*.csv. Archivos en el zip: ' + nombres, false);
+        setStatus('s2-dashzip', 'Necesito accounts_*.csv y billing_*.csv en el zip. Archivos encontrados: ' + nombres, false);
         return;
       }
       state2.billing = parseCsvRows(extractZipEntryText(buf, billEntry));
-      setStatus('s2-dashzip', 'Billing: ' + state2.billing.length + ' filas', true);
+      state2.accounts = parseCsvRows(sliceFromHeader(extractZipEntryText(buf, accEntry), ['ID','Nombre','País','Estado comercial']));
+      setStatus('s2-dashzip', 'Accounts: ' + state2.accounts.length + ' filas · Billing: ' + state2.billing.length + ' filas', true);
     } catch(err){ setStatus('s2-dashzip', 'Error al leer el zip: ' + err.message, false); }
     checkReady2();
   });
@@ -1256,6 +1258,13 @@
       if(id) billingByAcc2.set(id, r);
     });
 
+    const accountsByAcc2 = new Map();
+    state2.accounts.forEach(r => {
+      if((r['País']||'').trim() !== 'Argentina') return;
+      const id = normId(r['ID']);
+      if(id) accountsByAcc2.set(id, r);
+    });
+
     const odooByRef2 = new Map();
     state2.odoo.forEach(r => {
       const refRaw = String(r['Referencia'] || '').trim();
@@ -1270,6 +1279,10 @@
     const completos = [], incompletos = [];
 
     odooByRef2.forEach((odoo, id) => {
+      // La cuenta tiene que existir en el reporte de Accounts (activas) — si no está ahí,
+      // no corresponde tocar nada en Dash, aunque Odoo tenga el NIF cargado.
+      if(!accountsByAcc2.has(id)) return;
+
       const nif = String(odoo['NIF'] || '').trim();
       if(!nif) return; // sin NIF en Odoo, no hay nada para pasar a Dash
 
