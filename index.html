@@ -193,7 +193,7 @@
     { titulo: 'Regla 2b — Actualizar nombre (Consumidor Final)', texto: 'Sin billing, sin Metabase, ya existe en Odoo, y el Nombre de la cuenta en Dash cambió respecto al de Odoo → se actualiza solo el Nombre. No aplica cuando hay billing (ahí Odoo ya está validado contra ARCA y manda).' },
     { titulo: 'Regla 3a — Baja + Alta', texto: 'Billing.Código existe, NIF ≠ Código, y el NIF de Odoo NO está vacío (otra razón social / otro CUIT) → se da de baja el contacto viejo y se crea uno nuevo con los datos de Billing.' },
     { titulo: 'Regla 3b — Actualizar mismo contacto', texto: 'Billing.Código existe, NIF ≠ Código, y el NIF de Odoo SÍ está vacío (nunca tuvo uno cargado) → se actualiza el contacto existente en vez de dar de baja.' },
-    { titulo: 'Regla 4a — Actualizar vía Metabase', texto: 'Billing.Código NO existe, Odoo ya existe, Metabase aprobado → actualiza NIF / Razón social / Situación con datos de Metabase.' },
+    { titulo: 'Regla 4a — Actualizar vía Metabase', texto: 'Billing.Código NO existe, Odoo ya existe, Metabase aprobado → se compara el NIF de Odoo contra el CUIT de Metabase y el mail de Odoo contra el mail del admin. Si ambos ya coinciden, sin acción (o solo reactivar, si estaba archivado). Si alguno no coincide, se actualiza solo ese dato — Nombre y Responsabilidad AFIP quedan sin tocar, porque Odoo los corrige solo vía ARCA una vez que el NIF está bien.' },
     { titulo: 'Regla 4b — Alta vía Metabase', texto: 'Billing.Código NO existe, Odoo no existe, Metabase aprobado → alta nueva con datos de Metabase.' },
     { titulo: 'Regla 5 — Alta directa', texto: 'Billing.Código existe, Odoo no existe → alta nueva con datos de Billing (respeta si es CUIT o DNI).' },
     { titulo: 'Regla 6 — Alta Consumidor Final', texto: 'Billing.Código NO existe, Metabase sin aprobado, Odoo no existe → alta como Consumidor Final sin NIF, tipo de identificación Sigd.' },
@@ -1137,9 +1137,32 @@
         if(meta){
           if(odoo){
             const estabaArchivado = odoo['Activo'] === false;
-            const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:meta['afip_settings_social_name'], NIF:meta['afip_settings_cuit'], 'Tipo de identificación':'CUIT', 'Correo electrónico':mailAdmin, 'Tipo de Responsabilidad AFIP':mapSituacion(meta['afip_settings_issuer_iva_condition']), 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Actualizar vía Metabase', 'Comentario (no importar)':construirComentario(mailAdmin, true)};
-            r4a_update.push(row); output2.push(row);
-            log1('4a', 'Actualizar contacto (Metabase)', 'Sin billing, actualizado con Metabase' + (estabaArchivado ? ' (además estaba archivado, se reactiva)' : ''));
+            const cuitMeta = normDigits(meta['afip_settings_cuit']);
+            const nifOdoo = normDigits(odoo['NIF']);
+            const mailOdoo = normEmail(odoo['Correo electrónico']);
+            const mailAdminNorm = normEmail(mailAdmin);
+            const nifCoincide = !!(nifOdoo && cuitMeta && nifOdoo === cuitMeta);
+            const mailCoincide = mailOdoo === mailAdminNorm;
+
+            if(nifCoincide && mailCoincide){
+              if(estabaArchivado){
+                const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:odoo['Nombre'], NIF:odoo['NIF'], 'Tipo de identificación':odoo['TipoIdentificacion']||'', 'Correo electrónico':odoo['Correo electrónico'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Reactivar', 'Comentario (no importar)':construirComentario(odoo['Correo electrónico'], false)};
+                r1b_reactivar.push(row); output2.push(row);
+                log1('1b', 'Reactivar contacto', 'CUIT y mail ya coinciden con Metabase, pero el contacto está archivado — desarchivar');
+              } else {
+                r1_ok.push({referencia:id, id_odoo:odoo['ID'], razon_social:odoo['Nombre']});
+                log1('1', 'Sin acción', 'Validado OK vía Metabase (sin billing): CUIT y mail ya coinciden');
+              }
+            } else {
+              // Solo se toca lo que no coincide (NIF y/o mail). Nombre y Responsabilidad AFIP quedan
+              // igual que ya estaban en Odoo — eso lo actualiza Odoo solo, vía ARCA, una vez que el NIF es correcto.
+              const row = {'External ID':odoo['ExternalID']||'', Referencia:id, Nombre:odoo['Nombre'], NIF: cuitMeta || odoo['NIF'], 'Tipo de identificación': cuitMeta ? 'CUIT' : (odoo['TipoIdentificacion']||''), 'Correo electrónico': mailAdmin || odoo['Correo electrónico'], 'Tipo de Responsabilidad AFIP':odoo['Tipo de Responsabilidad AFIP'], 'Enlace a página web':odoo['Enlace a página web']||enlaceDash, Activo:'TRUE', 'Grupo (no importar)':'Actualizar vía Metabase', 'Comentario (no importar)':construirComentario(mailAdmin || odoo['Correo electrónico'], !mailCoincide)};
+              const cambios = [];
+              if(!nifCoincide) cambios.push('CUIT');
+              if(!mailCoincide) cambios.push('mail');
+              r4a_update.push(row); output2.push(row);
+              log1('4a', 'Actualizar contacto (Metabase)', 'Sin billing, se corrige: ' + cambios.join(' y ') + (estabaArchivado ? ' (además estaba archivado, se reactiva)' : ''));
+            }
           } else {
             const row = buildAltaRow({
               nombre: meta['afip_settings_social_name'], tipoIdent: 'CUIT', nif: meta['afip_settings_cuit'],
