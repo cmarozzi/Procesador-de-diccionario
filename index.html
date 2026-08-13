@@ -211,7 +211,8 @@
     { titulo: 'Contactos excluidos', texto: 'Se ignoran los contactos Archivados en Odoo y las Referencias con sufijo "_old" (bajas de una corrida anterior de la Etapa 1) — no participan del cruce. Este filtro ya está aplicado siempre, aunque el número total resultante sea grande: representa el acumulado histórico de todas las correcciones hechas en Odoo que Dash todavía no tiene, no solo las de la última corrida.' },
     { titulo: 'Cuentas internas (Fudo/Deli) — limitación', texto: 'La Etapa 2 no vuelve a chequear el Estado comercial ni el mail de admin (no carga esos archivos acá). Si una cuenta interna llegó a tener NIF cargado en Odoo antes de que existiera este chequeo, podría aparecer en el resultado — revisar manualmente si aparece algo sospechoso.' },
     { titulo: 'Mapeo de campos (Odoo → Dash)', texto: 'ID = Referencia. Tipo de identificación = Odoo.Tipo de Identificación (ya sin el sufijo " (AR)"). Código = Odoo.NIF. Razón social = Odoo.Nombre. Ciudad = Odoo.Ciudad. Estado = Odoo.Provincia. Domicilio = Odoo.Calle. Código postal = Odoo.C.P. Email = Odoo.Correo electrónico.' },
-    { titulo: 'Mapeo de situación fiscal (Odoo → Dash)', texto: 'IVA Responsable Inscripto → Responsable inscripto. Responsable Monotributo → Monotributo. Consumidor Final → Consumidor final. IVA Sujeto Exento → Exento. (Es el mapeo inverso al de la Etapa 1).' },
+    { titulo: 'Mapeo de situación fiscal (Odoo → Dash)', texto: 'IVA Responsable Inscripto → Responsable inscripto. Responsable Monotributo → Monotributo. Consumidor Final → Consumidor final. IVA Sujeto Exento → Exento. (Es el mapeo inverso al de la Etapa 1). Excepción: si da "Consumidor final" pero la cuenta ya tiene un NIF real cargado, se corrige a "Monotributo" (inconsistencia típica).' },
+    { titulo: 'Limpieza de texto para el CSV de Dash', texto: 'Se sacan las comillas (" y \\\') de todos los campos, y las comas dentro de un campo se reemplazan por punto y coma — para que no rompan el formato CSV separado por comas que pide Dash.' },
     { titulo: 'Todos los campos son obligatorios', texto: 'Dash exige los 9 campos del template (ID, Tipo de identificación, Código, Razón social, Ciudad, Estado, Domicilio, Situación ante el impuesto, Email, Código postal). Si a una cuenta le falta alguno, no entra al archivo de import: va al archivo de revisión.' },
     { titulo: 'Dos archivos de salida', texto: 'Import a Dash: filas 100% completas, listas para subir (CSV separado por comas). Revisar antes de importar: filas con algún dato faltante, con cada campo vacío marcado puntualmente (ej. "FALTA CIUDAD") para completar a mano.' }
   ];
@@ -1301,6 +1302,11 @@
     const CAMPOS_DASH = ['ID','Tipo de identificación','Código','Razón social','Ciudad','Estado','Domicilio','Situación ante el impuesto','Email','Código postal'];
     const completos = [], incompletos = [];
 
+    // Limpieza de texto para que no rompa el CSV de Dash: saca comillas y cambia comas por punto y coma.
+    function limpiarTextoDash(v){
+      return String(v == null ? '' : v).replace(/["']/g, '').replace(/,/g, ';');
+    }
+
     odooByRef2.forEach((odoo, id) => {
       // La cuenta tiene que existir en el reporte de Accounts (activas) — si no está ahí,
       // no corresponde tocar nada en Dash, aunque Odoo tenga el NIF cargado.
@@ -1313,17 +1319,22 @@
       const billingTieneCodigo = billing && String(billing['Código'] || '').trim();
       if(billingTieneCodigo) return; // Dash ya tiene el dato, no hace falta importar nada
 
+      // Si Odoo dice "Consumidor Final" pero ya tiene un NIF real cargado, es una inconsistencia —
+      // se corrige a Monotributo (la situación más común en estos casos).
+      let situacion = mapSituacionInversa(odoo['Tipo de Responsabilidad AFIP']);
+      if(situacion.trim().toLowerCase() === 'consumidor final') situacion = 'Monotributo';
+
       const fila = {
         'ID': id,
-        'Tipo de identificación': odoo['TipoIdentificacion'] || '',
-        'Código': nif,
-        'Razón social': odoo['Nombre'] || '',
-        'Ciudad': findKeyCI(odoo, 'Ciudad') || '',
-        'Estado': limpiarSufijoAR(findKeyCI(odoo, 'Provincia')) || '',
-        'Domicilio': findKeyCI(odoo, 'Calle') || '',
-        'Situación ante el impuesto': mapSituacionInversa(odoo['Tipo de Responsabilidad AFIP']),
-        'Email': odoo['Correo electrónico'] || '',
-        'Código postal': findKeyCI(odoo, 'C.P.') || findKeyCI(odoo, 'CP') || findKeyCI(odoo, 'Código postal') || ''
+        'Tipo de identificación': limpiarTextoDash(odoo['TipoIdentificacion']),
+        'Código': limpiarTextoDash(nif),
+        'Razón social': limpiarTextoDash(odoo['Nombre']),
+        'Ciudad': limpiarTextoDash(findKeyCI(odoo, 'Ciudad')),
+        'Estado': limpiarTextoDash(limpiarSufijoAR(findKeyCI(odoo, 'Provincia'))),
+        'Domicilio': limpiarTextoDash(findKeyCI(odoo, 'Calle')),
+        'Situación ante el impuesto': limpiarTextoDash(situacion),
+        'Email': limpiarTextoDash(odoo['Correo electrónico']),
+        'Código postal': limpiarTextoDash(findKeyCI(odoo, 'C.P.') || findKeyCI(odoo, 'CP') || findKeyCI(odoo, 'Código postal'))
       };
 
       let faltaAlgo = false;
