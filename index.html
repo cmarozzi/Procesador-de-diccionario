@@ -191,7 +191,7 @@
     { titulo: 'Regla 1b — Reactivar', texto: 'Igual que la Regla 1 (NIF y mail coinciden) pero el contacto está Archivado en Odoo → se genera una actualización que pone Activo = TRUE (cliente viejo que volvió a facturar). Las reglas 2, 3b y 4a también reactivan automáticamente si encuentran el contacto archivado.' },
     { titulo: 'Regla 2 — Actualizar mail', texto: 'Billing.Código existe, NIF = Código, Mail ≠ Email → se actualiza solo el mail.' },
     { titulo: 'Regla 2b — Actualizar nombre (Consumidor Final)', texto: 'Sin billing, sin Metabase, ya existe en Odoo, y el Nombre de la cuenta en Dash cambió respecto al de Odoo → se actualiza solo el Nombre. No aplica cuando hay billing (ahí Odoo ya está validado contra ARCA y manda).' },
-    { titulo: 'Regla 2c — Actualizar mail admin (mantenimiento)', texto: 'Mismo universo que la Regla 2b (sin billing, sin Metabase, ya existe en Odoo) → se compara el mail actual de Odoo contra el admin con más logins vigente. Si cambió el administrador de la cuenta (el mail viejo ya no es el de más logins, o dejó de existir en el reporte de admins), se actualiza el mail. Si en la misma corrida también cambió el Nombre (Regla 2b), se combina todo en una sola fila con Grupo "Regla 2b/2c". No aplica a la Regla 4a (Metabase), que ya compara y actualiza el mail admin como parte de su propia lógica.' },
+    { titulo: 'Regla 2c — Actualizar mail admin (mantenimiento)', texto: 'Mismo universo que la Regla 2b (sin billing, sin Metabase, ya existe en Odoo). Se chequea si el mail actual de Odoo sigue "vigente": si no aparece en el reporte de admins de esa cuenta, o si aparece pero su último login tiene más de 3 meses (contra la fecha real del análisis), se reemplaza. Si aparece y su login es de menos de 3 meses, no se toca (evita que el mail cambie solo por variaciones de logins de un mes a otro). Para elegir el reemplazo: entre los admins con login de menos de 3 meses, el de más logins; si ninguno tiene actividad reciente (caso raro), el de más logins entre todos. Si en la misma corrida también cambió el Nombre (Regla 2b), se combina todo en una sola fila con Grupo "Regla 2b/2c". No aplica a la Regla 4a (Metabase), que ya compara y actualiza el mail admin como parte de su propia lógica.' },
     { titulo: 'Regla 3a — Baja + Alta', texto: 'Billing.Código existe, NIF ≠ Código, y el NIF de Odoo NO está vacío (otra razón social / otro CUIT) → se da de baja el contacto viejo y se crea uno nuevo con los datos de Billing.' },
     { titulo: 'Regla 3b — Actualizar mismo contacto', texto: 'Billing.Código existe, NIF ≠ Código, y el NIF de Odoo SÍ está vacío (nunca tuvo uno cargado) → se actualiza el contacto existente en vez de dar de baja.' },
     { titulo: 'Regla 4a — Actualizar vía Metabase', texto: 'Billing.Código NO existe, Odoo ya existe, Metabase aprobado → se compara el NIF de Odoo contra el CUIT de Metabase y el mail de Odoo contra el mail del admin. Si ambos ya coinciden, sin acción (o solo reactivar, si estaba archivado). Si alguno no coincide, se actualiza solo ese dato — Nombre y Responsabilidad AFIP quedan sin tocar, porque Odoo los corrige solo vía ARCA una vez que el NIF está bien.' },
@@ -987,6 +987,31 @@
       adminBest.set(id, list[0]);
     });
 
+    // Resolver de mail para la Regla 2c (mantenimiento) — distinto del resto de la herramienta:
+    // acá lo que importa no es "quien tiene mas logins hoy" sino "el mail actual de Odoo sigue
+    // siendo un admin vigente (con actividad reciente) de la cuenta".
+    const HOY = new Date();
+    const LIMITE_3_MESES = new Date(HOY); LIMITE_3_MESES.setMonth(LIMITE_3_MESES.getMonth() - 3);
+    const LIMITE_3_MESES_MS = LIMITE_3_MESES.getTime();
+    function loginTimeMs(admin){
+      const t = new Date(admin['Último login (UTC)'] || 0).getTime();
+      return isNaN(t) ? 0 : t;
+    }
+    function resolverMailMantenimiento(id, mailOdooActual){
+      const lista = adminGroups.get(id) || []; // ya viene ordenada por Logins desc (efecto del sort de arriba)
+      const mailOdooNorm = normEmail(mailOdooActual);
+      const actual = lista.find(a => normEmail(a['Email']) === mailOdooNorm);
+
+      if(actual && loginTimeMs(actual) >= LIMITE_3_MESES_MS){
+        return { cambia:false, nuevo: mailOdooActual }; // sigue vigente (activo o con login reciente), no se toca
+      }
+      // No aparece en el reporte, o aparece pero con login de mas de 3 meses -> hay que reemplazar.
+      // Prioridad: el de mas logins ENTRE los que tienen login reciente (<3 meses).
+      const recientes = lista.filter(a => loginTimeMs(a) >= LIMITE_3_MESES_MS);
+      const candidato = recientes.length ? recientes[0] : (lista.length ? lista[0] : null); // si nadie es reciente, el de mas logins entre todos
+      return { cambia:true, nuevo: candidato ? candidato['Email'] : '' };
+    }
+
     function mapSituacion(raw){
       if(!raw) return '';
       const s = String(raw).trim().toLowerCase();
@@ -1180,13 +1205,12 @@
           const nombreDash = String(accRow['Nombre'] || '').trim();
           const nombreOdoo = String(odoo['Nombre'] || '').trim();
           const nombreCambio = !!(nombreDash && nombreDash !== nombreOdoo);
-          const mailOdooNorm = normEmail(odoo['Correo electrónico']);
-          const mailAdminNorm = normEmail(mailAdmin);
-          const mailCambio = mailOdooNorm !== mailAdminNorm;
+          const resolucionMail = resolverMailMantenimiento(id, odoo['Correo electrónico']);
+          const mailCambio = resolucionMail.cambia && normEmail(resolucionMail.nuevo) !== normEmail(odoo['Correo electrónico']);
 
           if(nombreCambio || mailCambio){
             const nombreFinal = nombreCambio ? nombreDash : odoo['Nombre'];
-            const mailFinal = mailCambio ? mailAdmin : odoo['Correo electrónico'];
+            const mailFinal = mailCambio ? resolucionMail.nuevo : odoo['Correo electrónico'];
             const grupo = nombreCambio && mailCambio ? 'Regla 2b/2c - Actualizar Nombre y Mail admin'
                         : nombreCambio ? 'Actualizar nombre'
                         : 'Actualizar mail admin';
