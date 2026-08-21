@@ -203,7 +203,8 @@
     { titulo: 'Output 1 — Análisis completo', texto: 'Una fila por cada cuenta AR con la regla y acción aplicada. Sirve de backup/auditoría de cada corrida.' },
     { titulo: 'Output 2 — Actualizar contactos en Odoo', texto: 'Incluye reglas 1b, 2, 2b, 3a (baja), 3b y 4a. Solo columna "External ID" (sin ID de base de datos) — al importar, mapear "External ID" al campo External ID para que actualice en vez de crear. Trae columna "Grupo" (qué regla aplicó) y "Comentario" (avisos a revisar antes de importar, ninguna se pisa).' },
     { titulo: 'Output 3 — Alta de contactos en Odoo', texto: 'Incluye reglas 3a (alta), 4b, 5 y 6. Plantilla Comandarina, sin columna ID. Sub-casos: CUIT, DNI (con domicilio/ciudad), Sin datos (Sigd), 4b (Metabase), 3a-alta. Prioridad de mail: Billing.Email si existe, si no Admin (Dash). Trae columna "Comentario" con avisos a revisar antes de importar.' },
-    { titulo: 'Revisión manual por mail (Output 2 y 3)', texto: 'Si falta el mail de admin, o el mail tiene tildes, espacios de más, o formato inválido, esa cuenta NO se incluye en el Output 2/3 — queda afuera del archivo de importación. El banner de arriba muestra el detalle completo (cuenta + qué falta) directamente, para resolverlo a mano antes de la próxima corrida.' },
+    { titulo: 'Cómo se elige el mail del admin (todas las reglas)', texto: 'Entre todos los admins de una cuenta (reporte admin_emails.csv, que ya viene filtrado por Dash a solo usuarios con Admin = Sí), se prioriza primero que el mail tenga formato válido (no sirve el usuario de login interno de Dash, tipo "dev@milanpunto" — ahí no llegan las facturas), y recién entre los que tienen mail válido, el de más logins. Si ninguno tiene mail válido, se usa igual el de más logins (va a quedar marcado para revisión por formato inválido).' },
+    { titulo: 'Revisión manual por mail (Output 2 y 3)', texto: 'Si la cuenta no tiene ningún admin en absoluto (0 filas en admin_emails.csv — la cuenta nunca tuvo un usuario marcado Admin = Sí en Dash, hay que avisarle al cliente para que designe uno), o si el mail resuelto tiene tildes, espacios de más, o formato inválido, esa cuenta NO se incluye en el Output 2/3 — queda afuera del archivo de importación. El banner de arriba muestra el detalle completo (cuenta + qué falta) directamente, para resolverlo a mano antes de la próxima corrida.' },
     { titulo: 'Mapeo de situación fiscal (Dash/Metabase → Odoo)', texto: 'Responsable inscripto / responsable_inscripto → IVA Responsable Inscripto. Monotributo / monotributista → Responsable Monotributo. Consumidor final → Consumidor Final. Exento → IVA Sujeto Exento. (Solo aplica en Output 2, no en Output 3).' }
   ];
 
@@ -978,6 +979,12 @@
     const adminBest = new Map();
     adminGroups.forEach((list, id) => {
       list.sort((a,b) => {
+        // Prioridad 1: que el mail tenga formato válido (ahí se mandan las facturas, no sirve
+        // un "mail" que en realidad es el usuario de login interno de Dash, tipo "dev@milanpunto").
+        const va = esMailValido(a['Email']) ? 1 : 0;
+        const vb = esMailValido(b['Email']) ? 1 : 0;
+        if(vb !== va) return vb - va;
+        // Prioridad 2: mas logins. Prioridad 3: login mas reciente.
         const la = parseInt(a['Logins']||'0',10), lb = parseInt(b['Logins']||'0',10);
         if(lb !== la) return lb - la;
         const da = new Date(a['Último login (UTC)']||0).getTime();
@@ -1031,7 +1038,7 @@
       const problemas = [];
       const limpio = (mail || '').trim();
       if(!limpio){
-        problemas.push(huboIntentoAdmin ? 'buscar mail admin' : 'mail vacío');
+        problemas.push(huboIntentoAdmin ? 'No tiene ningún mail admin' : 'mail vacío');
         return problemas.join('; ');
       }
       if(mail !== limpio) problemas.push('mail con espacios extra');
@@ -1039,6 +1046,12 @@
       if(/\s/.test(limpio)) problemas.push('mail con espacios internos');
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpio)) problemas.push('formato de mail inválido');
       return problemas.join('; ');
+    }
+
+    // Un mail "válido" es el que no dispara ningún problema de construirComentario — se reutiliza
+    // la misma validación para elegir qué admin usar, así queda 100% consistente en toda la herramienta.
+    function esMailValido(mail){
+      return !!mail && construirComentario(mail, false) === '';
     }
 
     // Fila de alta para Output 3: mismos campos siempre, cambia el origen del dato segun el caso.
